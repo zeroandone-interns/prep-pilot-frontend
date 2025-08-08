@@ -1,11 +1,7 @@
-import './App.css'
+import Chatbot from './pages/chatbot-page/ChatBot'
 
-function App() {
-  return (
-    <>
-    <h1>Tetst Commit</h1>
-    </>
-  )
+export default function App() {
+  return <div className="app">
+    <Chatbot />
+  </div>
 }
-
-export default App
