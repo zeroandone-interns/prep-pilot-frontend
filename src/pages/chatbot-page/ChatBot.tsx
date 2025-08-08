@@ -39,7 +39,6 @@ interface Chat {
   lastActive: Date
 }
 
-// Width of the sidebar
 const drawerWidth = 250
 
 export default function Chatbot() {
@@ -120,7 +119,6 @@ export default function Chatbot() {
       <Drawer
         variant="permanent"
         sx={{
-          width: drawerWidth,
           flexShrink: 0,
           '& .MuiDrawer-paper': {
             width: drawerWidth,
@@ -168,8 +166,7 @@ export default function Chatbot() {
           flexGrow: 1,
           ml: `${drawerWidth}px`,
           display: 'flex',
-          flexDirection: 'column',
-          height: '100vh'
+          flexDirection: 'column'
         }}
       >
         {/* Header */}
