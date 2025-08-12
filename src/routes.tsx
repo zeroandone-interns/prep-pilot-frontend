@@ -11,7 +11,7 @@ import AdminCourses from '@/pages/admin/AdminCourses'
 import SignUp from '@/pages/signin/Signup'
 import EmailVerification from '@/pages/signin/EmailVerification'
 import CreatePassword from '@/pages/signin/CreatePassword'
-
+import CreateCoursePage from '@/pages/admin/CreateCoursePage'
 const router = createBrowserRouter([
   // Routes without navbar (outside MainLayout)
   { path: '/', element: <SignUp /> },
@@ -29,6 +29,7 @@ const router = createBrowserRouter([
       { path: '/courses/:id/exam', element: <FinalExamPage /> },
       { path: '/admin/users', element: <AdminUsers /> },
       { path: '/admin/courses', element: <AdminCourses /> },
+      { path: '/admin/courses/new', element: <CreateCoursePage /> },
     ],
   },
 ])
