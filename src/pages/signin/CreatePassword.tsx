@@ -28,7 +28,7 @@ export default function CreatePassword() {
         // TODO: Call your password creation API here
 
         // On success, navigate to login page
-        navigate("/signup");
+        navigate("/");
     };
 
     return (

@@ -14,7 +14,7 @@ import CreatePassword from '@/pages/signin/CreatePassword'
 
 const router = createBrowserRouter([
   // Routes without navbar (outside MainLayout)
-  { path: '/signup', element: <SignUp /> },
+  { path: '/', element: <SignUp /> },
   { path: '/email-verification', element: <EmailVerification /> },
   { path: '/create-password', element: <CreatePassword /> },
 

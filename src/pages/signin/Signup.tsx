@@ -22,7 +22,7 @@ export default function Signup() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         // TODO: Sign-up API logic
-        navigate("/login");
+        navigate("/chatbot");
     };
 
     return (

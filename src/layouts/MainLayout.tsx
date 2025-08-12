@@ -3,7 +3,7 @@ import { AppBar, Toolbar, Typography, Button, Container, Box } from '@mui/materi
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 const links = [
-  { to: '/', label: 'Chatbot' },
+  { to: '/chatbot', label: 'Chatbot' },
   { to: '/courses', label: 'Courses' },
   { to: '/admin/users', label: 'Edit Users' },
   { to: '/admin/courses', label: 'Edit Courses' },
