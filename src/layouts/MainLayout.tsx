@@ -15,7 +15,23 @@ export default function MainLayout() {
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AppBar position="sticky" color="primary" elevation={1}>
         <Toolbar sx={{ gap: 2 }}>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>Edu AWS</Typography>
+          {/* Logo */}
+          <Box
+            component="img"
+            src="/Prep-pilot-logo.png"
+            alt="PrepPilot Logo"
+            sx={{
+              height: 36,
+              width: 'auto',
+              mr: 1,
+              display: 'block',
+            }}
+          />
+          {/* Title */}
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            PrepPilot
+          </Typography>
+          {/* Navigation */}
           {links.map((l) => (
             <Button
               key={l.to}
