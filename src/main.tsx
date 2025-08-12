@@ -8,8 +8,12 @@ import '@fontsource/inter/400.css'
 import '@fontsource/inter/500.css'
 import '@fontsource/inter/700.css'
 const theme = createTheme({
-  palette: { primary: { main: '#337CA0' }, secondary: { main: '#00C897' } },
-  typography: { fontFamily: '"Inter","Roboto","Helvetica","Arial",sans-serif' },
+  palette: {
+primary: { main: '#0A192F' },   // Almost-black navy
+secondary: { main: '#64FFDA' }},
+  typography: {
+    fontFamily: '"Inter","Roboto","Helvetica","Arial",sans-serif',
+  },
   components: {
     MuiAppBar: {
       styleOverrides: {
@@ -31,7 +35,7 @@ const theme = createTheme({
       ],
     },
   },
-})
+});
 
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

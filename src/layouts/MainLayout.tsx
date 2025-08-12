@@ -18,10 +18,10 @@ export default function MainLayout() {
           {/* Logo */}
           <Box
             component="img"
-            src="/Prep-pilot-logo.png"
+            src="/new_logo_3.png"
             alt="PrepPilot Logo"
             sx={{
-              height: 36,
+              height: 52,
               width: 'auto',
               mr: 1,
               display: 'block',
