@@ -1,10 +1,46 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App'
+import { CssBaseline, ThemeProvider, createTheme } from '@mui/material'
+import { Provider } from 'react-redux'
+import { store } from './store'
+import '@fontsource/inter/400.css'
+import '@fontsource/inter/500.css'
+import '@fontsource/inter/700.css'
+const theme = createTheme({
+  palette: { primary: { main: '#337CA0' }, secondary: { main: '#00C897' } },
+  typography: { fontFamily: '"Inter","Roboto","Helvetica","Arial",sans-serif' },
+  components: {
+    MuiAppBar: {
+      styleOverrides: {
+        colorPrimary: ({ theme }) => ({
+          background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+        }),
+      },
+    },
+    MuiButton: {
+      variants: [
+        {
+          props: { variant: 'contained', color: 'primary' },
+          style: ({ theme }) => ({
+            background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+            color: '#fff',
+            '&:hover': { filter: 'brightness(0.95)' },
+          }),
+        },
+      ],
+    },
+  },
+})
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <Provider store={store}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <App />
+      </ThemeProvider>
+    </Provider>
+  </React.StrictMode>
 )
