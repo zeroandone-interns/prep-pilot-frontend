@@ -1,4 +1,5 @@
 import * as React from 'react'
+import SectionPage from './pages/courses-page/SectionPage'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import MainLayout from '@/layouts/MainLayout'
 import Chatbot from '@/pages/chatbot-page/ChatBot'
@@ -30,6 +31,7 @@ const router = createBrowserRouter([
       { path: '/admin/users', element: <AdminUsers /> },
       { path: '/admin/courses', element: <AdminCourses /> },
       { path: '/admin/courses/new', element: <CreateCoursePage /> },
+      { path: '/courses/:id/modules/:moduleId/sections/:sectionId', element: <SectionPage /> },
     ],
   },
 ])

@@ -28,42 +28,49 @@ export default function AdminCourses() {
   }
 
   const simulateGenerate = (courseId: string, courseTitle: string) => {
+    // Inject a module that conforms to the new shape: { id, title, sections: [...] }
     dispatch(injectGeneratedModule({
       courseId,
       module: {
         id: `m-${Date.now()}`,
         title: `${courseTitle} — Module 1`,
-        blocks: [
-          { kind: 'paragraph' as const, text: 'This module was generated from uploaded documents, links, and videos.' },
-          { kind: 'paragraph' as const, text: 'It introduces the topic and outlines key learning outcomes.' },
+        sections: [
           {
-            kind: 'media' as const,
-            media: { type: 'image' as const, url: 'https://via.placeholder.com/800x420?text=Generated+Module', caption: 'Auto-generated visual' },
-          },
-        ],
-        quiz: [
-          {
-            id: 'gq1',
-            prompt: 'What is the source of this module? ',
-            options: [
-              { id: 'a', text: 'Uploaded resources (docs/links/videos)' },
-              { id: 'b', text: 'Random generator' },
-              { id: 'c', text: 'User chat only' },
+            id: `s-${Date.now()}`,
+            title: 'Section 1: Overview',
+            blocks: [
+              { kind: 'paragraph' as const, text: 'This section was generated from uploaded documents, links, and videos.' },
+              { kind: 'paragraph' as const, text: 'It introduces the topic and outlines key learning outcomes.' },
+              {
+                kind: 'media' as const,
+                media: { type: 'image' as const, url: 'https://via.placeholder.com/800x420?text=Generated+Section', caption: 'Auto-generated visual' },
+              },
             ],
-            correctOptionId: 'a',
-          },
-          {
-            id: 'gq2',
-            prompt: 'How many questions are in each module quiz by design?',
-            options: [ { id: 'a', text: '1' }, { id: 'b', text: '3' }, { id: 'c', text: '10' } ],
-            correctOptionId: 'b',
-          },
-          {
-            id: 'gq3',
-            prompt: 'Modules can include which content types?',
-            options: [ { id: 'a', text: 'Paragraphs and media' }, { id: 'b', text: 'Only code' }, { id: 'c', text: 'Neither' } ],
-            correctOptionId: 'a',
-          },
+            quiz: [
+              {
+                id: 'gq1',
+                prompt: 'What is the source of this section?',
+                options: [
+                  { id: 'a', text: 'Uploaded resources (docs/links/videos)' },
+                  { id: 'b', text: 'Random generator' },
+                  { id: 'c', text: 'User chat only' },
+                ],
+                correctOptionId: 'a',
+              },
+              {
+                id: 'gq2',
+                prompt: 'How many questions are in each section quiz by design?',
+                options: [ { id: 'a', text: '1' }, { id: 'b', text: '3' }, { id: 'c', text: '10' } ],
+                correctOptionId: 'b',
+              },
+              {
+                id: 'gq3',
+                prompt: 'Sections can include which content types?',
+                options: [ { id: 'a', text: 'Paragraphs and media' }, { id: 'b', text: 'Only code' }, { id: 'c', text: 'Neither' } ],
+                correctOptionId: 'a',
+              },
+            ],
+          }
         ],
       },
     }))
@@ -124,14 +131,22 @@ export default function AdminCourses() {
                     {(c.awsServices?.slice(0, 5) || []).map((s) => <Chip key={s} size="small" label={s} />)}
                   </Stack>
                 </TableCell>
-                <TableCell><Chip size="small" color={c.modules?.length ? 'secondary' : 'default'} label={`${c.modules?.length ?? 0}`} /></TableCell>
-                <TableCell><Chip size="small" color={c.finalExam ? 'secondary' : 'default'} label={c.finalExam ? 'Yes' : 'No'} /></TableCell>
+                <TableCell>
+                  <Chip size="small" color={c.modules?.length ? 'secondary' : 'default'} label={`${c.modules?.length ?? 0}`} />
+                </TableCell>
+                <TableCell>
+                  <Chip size="small" color={c.finalExam ? 'secondary' : 'default'} label={c.finalExam ? 'Yes' : 'No'} />
+                </TableCell>
                 <TableCell align="right">
                   <Tooltip title="Simulate Generate Course (Module + Final)">
-                    <IconButton color="primary" onClick={() => simulateGenerate(c.id, c.title)}><AutoAwesomeIcon /></IconButton>
+                    <IconButton color="primary" onClick={() => simulateGenerate(c.id, c.title)}>
+                      <AutoAwesomeIcon />
+                    </IconButton>
                   </Tooltip>
                   <Tooltip title="Delete Course">
-                    <IconButton color="error" onClick={() => dispatch(deleteCourse(c.id))}><DeleteIcon /></IconButton>
+                    <IconButton color="error" onClick={() => dispatch(deleteCourse(c.id))}>
+                      <DeleteIcon />
+                    </IconButton>
                   </Tooltip>
                 </TableCell>
               </TableRow>
@@ -140,7 +155,7 @@ export default function AdminCourses() {
         </Table>
       </TableContainer>
 
-      {/* old dialog kept; you can delete if not needed */}
+      {/* Optional legacy dialog */}
       <Dialog open={open} onClose={() => setOpen(false)}>
         <DialogTitle>Create Course</DialogTitle>
         <DialogContent sx={{ pt: 2, display: 'grid', gap: 2, minWidth: 420 }}>

@@ -1,13 +1,14 @@
-import * as React from "react";
-import { useParams, Link as RouterLink } from "react-router-dom";
-import { useAppSelector } from "@/store";
-import { Box, Breadcrumbs, Link, Typography, List, ListItem, ListItemButton, ListItemText, Divider, Button } from "@mui/material";
+// src/pages/courses-page/CourseDetailPage.tsx
+import * as React from "react"
+import { useParams, Link as RouterLink } from "react-router-dom"
+import { useAppSelector } from "@/store"
+import { Box, Breadcrumbs, Link, Typography, List, ListItem, ListItemButton, ListItemText, Divider, Button } from "@mui/material"
 
 export default function CourseDetailPage() {
-  const { id } = useParams();
-  const course = useAppSelector((s) => s.courses.items.find((c) => c.id === id));
+  const { id } = useParams()
+  const course = useAppSelector((s) => s.courses.items.find((c) => c.id === id))
 
-  if (!course) return <Typography>Course not found.</Typography>;
+  if (!course) return <Typography>Course not found.</Typography>
 
   return (
     <Box>
@@ -40,5 +41,5 @@ export default function CourseDetailPage() {
         </Button>
       )}
     </Box>
-  );
+  )
 }

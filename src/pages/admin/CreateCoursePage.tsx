@@ -50,35 +50,42 @@ export default function CreateCoursePage() {
 
     // Build blocks with correct literal types
     const blocks: ContentBlock[] = [
-      { kind: 'paragraph', text: description || 'This module was generated from your uploaded resources.' },
+      { kind: 'paragraph', text: description || 'This section was generated from your uploaded resources.' },
       ...links.filter(Boolean).slice(0, 2).map((href, i): ContentBlock => ({
         kind: 'paragraph',
         text: `Reference link ${i + 1}: ${href}`,
       })),
       ...videos.filter(Boolean).slice(0, 1).map((v): ContentBlock => ({
         kind: 'media',
-        media: { type: 'video', url: v, caption: 'Provided video' } as const,
+        media: { type: 'video' as const, url: v, caption: 'Provided video' },
       })),
       ...(pdfs.length ? [{
-        kind: 'paragraph',
+        kind: 'paragraph' as const,
         text: `Included PDFs: ${pdfs.map(f => f.name).join(', ')}`,
-      } as const] : []),
+      }] : []),
     ]
+
+    // Create one module with one section (sections hold blocks + quiz)
+    const section = {
+      id: `s-${Date.now()}`,
+      title: 'Section 1',
+      blocks,
+      quiz: [
+        { id: 'sq1', prompt: 'Was this section generated from your resources?', options: [
+          { id: 'a', text: 'Yes' }, { id: 'b', text: 'No' }, { id: 'c', text: 'Maybe' }], correctOptionId: 'a' },
+        { id: 'sq2', prompt: 'How many question items per section?', options: [
+          { id: 'a', text: '3' }, { id: 'b', text: '1' }, { id: 'c', text: '10' }], correctOptionId: 'a' },
+        { id: 'sq3', prompt: 'Sections may include paragraphs and media.', options: [
+          { id: 'a', text: 'True' }, { id: 'b', text: 'False' }, { id: 'c', text: 'Only media' }], correctOptionId: 'a' },
+      ],
+    }
 
     dispatch(injectGeneratedModule({
       courseId: created.id,
       module: {
         id: `m-${Date.now()}`,
         title: `${created.title} — Module 1`,
-        blocks,
-        quiz: [
-          { id: 'q1', prompt: 'Was this module generated from your resources?', options: [
-            { id: 'a', text: 'Yes' }, { id: 'b', text: 'No' }, { id: 'c', text: 'Maybe' }], correctOptionId: 'a' },
-          { id: 'q2', prompt: 'How many question items per module?', options: [
-            { id: 'a', text: '3' }, { id: 'b', text: '1' }, { id: 'c', text: '10' }], correctOptionId: 'a' },
-          { id: 'q3', prompt: 'Modules may include paragraphs and media.', options: [
-            { id: 'a', text: 'True' }, { id: 'b', text: 'False' }, { id: 'c', text: 'Only media' }], correctOptionId: 'a' },
-        ],
+        sections: [section],
       }
     }))
 
