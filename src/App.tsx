@@ -1,7 +1,2 @@
-import Chatbot from './pages/chatbot-page/ChatBot'
-
-export default function App() {
-  return <div className="app">
-    <Chatbot />
-  </div>
-}
+import AppRoutes from './routes'
+export default function App() { return <AppRoutes /> }
