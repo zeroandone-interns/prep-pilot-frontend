@@ -13,7 +13,9 @@ primary: { main: '#0A192F' },   // Almost-black navy
 secondary: { main: '#64FFDA' }},
   typography: {
     fontFamily: '"Inter","Roboto","Helvetica","Arial",sans-serif',
-  },
+    // font-display: FOR HEADING
+    // font-body: // FOR BODY
+  },  
   components: {
     MuiAppBar: {
       styleOverrides: {
