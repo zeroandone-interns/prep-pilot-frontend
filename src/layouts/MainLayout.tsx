@@ -5,8 +5,8 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 const links = [
   { to: '/', label: 'Chatbot' },
   { to: '/courses', label: 'Courses' },
-  { to: '/admin/users', label: 'Admin: Users' },
-  { to: '/admin/courses', label: 'Admin: Courses' },
+  { to: '/admin/users', label: 'Edit Users' },
+  { to: '/admin/courses', label: 'Edit Courses' },
 ]
 
 export default function MainLayout() {
