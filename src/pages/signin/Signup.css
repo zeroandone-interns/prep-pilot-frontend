@@ -1,0 +1,25 @@
+/* src/pages/Signup.css */
+
+.signup-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.signup-container {
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+}
+
+.signup-logo .icon {
+    width: 150px;
+    height: 150px;
+    margin: 0 auto 1rem auto;
+}
+
+.create-password-form{
+    margin-top: 1rem;
+}
