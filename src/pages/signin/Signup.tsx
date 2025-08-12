@@ -29,7 +29,7 @@ export default function Signup() {
         <Box className="signup-page" sx={{ bgcolor: "background.default", color: "text.primary" }}>
             <Box className="signup-container">
                 <div className="signup-logo">
-                    <img src="/logo.png" alt="Logo" className="icon" />
+                    <img src="/logo-for-login.png" alt="Logo" className="icon" />
                 </div>
                 <Card>
                     <CardHeader

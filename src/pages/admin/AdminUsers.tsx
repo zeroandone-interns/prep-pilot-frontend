@@ -1,71 +1,57 @@
+// src/pages/admin/AdminUsers.tsx
 import * as React from 'react'
 import {
   Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  IconButton, Chip, Drawer, Typography, Stack
+  IconButton, Chip, Drawer, Typography, Stack, Select, MenuItem, InputLabel, FormControl
 } from '@mui/material'
-import DeleteIcon from '@mui/icons-material/Delete'
-import VisibilityIcon from '@mui/icons-material/Visibility'
-import AddIcon from '@mui/icons-material/PersonAdd'
+import { Visibility, Edit, Save, PersonAdd, Delete } from '@mui/icons-material'
 import { useAppDispatch, useAppSelector } from '@/store'
-import { addUser, deleteUser, selectUserById } from '@/store/usersSlice'
+import { addUser, deleteUser, selectUserById, updateUser } from '@/store/usersSlice'
 
 export default function AdminUsers() {
-  const dispatch = useAppDispatch()
-  const users = useAppSelector((s) => s.users.items)
-  const courses = useAppSelector((s) => s.courses.items)
+  const d = useAppDispatch()
+  const users = useAppSelector(s => s.users.items)
+  const courses = useAppSelector(s => s.courses.items)
 
-  // Add dialog state
   const [open, setOpen] = React.useState(false)
-  const [form, setForm] = React.useState({ name: '', email: '', isAdmin: false })
+  const [addForm, setAdd] = React.useState({ firstName:'', lastName:'', email:'', role:'learner' as 'learner'|'admin' })
 
-  // View drawer state
-  const [viewId, setViewId] = React.useState<string | null>(null)
-  const viewed = useAppSelector((s) => selectUserById(s, viewId || ''))
+  const [viewId, setView] = React.useState<string | null>(null)
+  const viewed = useAppSelector(s => selectUserById(s, viewId || ''))
+  const [edit, setEdit] = React.useState(false)
+  const [form, setForm] = React.useState({ firstName:'', lastName:'', email:'', role:'learner' as 'learner'|'admin' })
+
+  React.useEffect(() => {
+    if (!viewed) return
+    setForm({ firstName:viewed.firstName, lastName:viewed.lastName, email:viewed.email, role:viewed.role })
+  }, [viewed])
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+      <Box sx={{ display:'flex', justifyContent:'space-between', mb:2 }}>
         <Typography variant="h5">Users</Typography>
-        <Button startIcon={<AddIcon />} variant="contained" onClick={() => setOpen(true)}>
-          Add User
-        </Button>
+        <Button startIcon={<PersonAdd/>} variant="contained" onClick={() => setOpen(true)}>Add User</Button>
       </Box>
 
       <TableContainer component={Paper}>
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Role</TableCell>
-              <TableCell>Enrolled</TableCell>
+              <TableCell>Name</TableCell><TableCell>Email</TableCell><TableCell>Role</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.map((u) => (
+            {users.map(u => (
               <TableRow key={u.id} hover>
-                <TableCell>{u.name}</TableCell>
+                <TableCell>{u.firstName} {u.lastName}</TableCell>
                 <TableCell>{u.email}</TableCell>
-                <TableCell>{u.isAdmin ? <Chip color="secondary" label="Admin" /> : 'User'}</TableCell>
-                <TableCell>
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    {u.enrollments.map((e) => {
-                      const course = courses.find((c) => c.id === e.courseId)
-                      return (
-                        <Chip key={e.courseId} size="small" label={`${course?.title || 'Course'} • ${e.progress}%`} />
-                      )
-                    })}
-                  </Stack>
-                </TableCell>
+                <TableCell><Chip size="small" color={u.role==='admin'?'secondary':'default'} label={u.role}/></TableCell>
                 <TableCell align="right">
-                  <IconButton color="primary" onClick={() => setViewId(u.id)}>
-                    <VisibilityIcon />
-                  </IconButton>
-                  <IconButton color="error" onClick={() => dispatch(deleteUser(u.id))}>
-                    <DeleteIcon />
-                  </IconButton>
+                  <IconButton color="primary" onClick={()=>{setView(u.id); setEdit(false)}}><Visibility/></IconButton>
+                  <IconButton color="primary" onClick={()=>{setView(u.id); setEdit(true)}}><Edit/></IconButton>
+                  <IconButton color="error" onClick={()=>d(deleteUser(u.id))}><Delete/></IconButton>
                 </TableCell>
               </TableRow>
             ))}
@@ -73,61 +59,72 @@ export default function AdminUsers() {
         </Table>
       </TableContainer>
 
-      {/* Add user dialog */}
-      <Dialog open={open} onClose={() => setOpen(false)}>
+      <Dialog open={open} onClose={()=>setOpen(false)}>
         <DialogTitle>Add User</DialogTitle>
-        <DialogContent sx={{ pt: 2, display: 'grid', gap: 2, minWidth: 360 }}>
-          <TextField label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <TextField label="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        <DialogContent sx={{ pt:2, display:'grid', gap:2, minWidth:420 }}>
+          <TextField label="First name" value={addForm.firstName} onChange={e=>setAdd({...addForm, firstName:e.target.value})}/>
+          <TextField label="Last name"  value={addForm.lastName}  onChange={e=>setAdd({...addForm, lastName:e.target.value})}/>
+          <TextField label="Email" type="email" value={addForm.email} onChange={e=>setAdd({...addForm, email:e.target.value})}/>
+          <FormControl>
+            <InputLabel id="role">Role</InputLabel>
+            <Select labelId="role" label="Role" value={addForm.role}
+              onChange={e=>setAdd({...addForm, role:e.target.value as 'learner'|'admin'})}>
+              <MenuItem value="learner">Learner</MenuItem><MenuItem value="admin">Admin</MenuItem>
+            </Select>
+          </FormControl>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={() => {
-              dispatch(addUser({ name: form.name, email: form.email }))
-              setForm({ name: '', email: '', isAdmin: false })
-              setOpen(false)
-            }}
-          >
-            Save
-          </Button>
+          <Button onClick={()=>setOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={()=>{
+            if(!addForm.firstName||!addForm.lastName||!addForm.email) return
+            d(addUser(addForm)); setAdd({ firstName:'', lastName:'', email:'', role:'learner' }); setOpen(false)
+          }}>Save</Button>
         </DialogActions>
       </Dialog>
 
-      {/* View drawer: user details */}
-      <Drawer anchor="right" open={!!viewId} onClose={() => setViewId(null)}>
-        <Box sx={{ width: 380, p: 2 }}>
-          {viewed ? (
+      <Drawer anchor="right" open={!!viewId} onClose={()=>setView(null)}>
+        <Box sx={{ width:420, p:2 }}>
+          {!viewed ? <Typography>No user selected.</Typography> : (
             <>
-              <Typography variant="h6" sx={{ mb: 1 }}>{viewed.name}</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{viewed.email}</Typography>
+              <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1.5 }}>
+                <Typography variant="h6">{viewed.firstName} {viewed.lastName}</Typography>
+                {edit
+                  ? <Button size="small" startIcon={<Save/>} variant="contained"
+                      onClick={()=>{ d(updateUser({ id:viewed.id, changes:form })); setEdit(false) }}>Save</Button>
+                  : <Button size="small" startIcon={<Edit/>} onClick={()=>setEdit(true)}>Edit</Button>}
+              </Box>
+
+              <Stack spacing={1.5} sx={{ mb:2 }}>
+                <TextField label="First name" value={form.firstName} onChange={e=>setForm({...form,firstName:e.target.value})} disabled={!edit}/>
+                <TextField label="Last name"  value={form.lastName}  onChange={e=>setForm({...form,lastName:e.target.value})} disabled={!edit}/>
+                <TextField label="Email" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} disabled={!edit}/>
+                <FormControl disabled={!edit}>
+                  <InputLabel id="role2">Role</InputLabel>
+                  <Select labelId="role2" label="Role" value={form.role} onChange={e=>setForm({...form,role:e.target.value as 'learner'|'admin'})}>
+                    <MenuItem value="learner">Learner</MenuItem><MenuItem value="admin">Admin</MenuItem>
+                  </Select>
+                </FormControl>
+              </Stack>
 
               <Typography variant="subtitle2">Enrolled Courses</Typography>
-              <Stack spacing={1} sx={{ my: 1 }}>
-                {viewed.enrollments.map((e) => {
-                  const course = courses.find((c) => c.id === e.courseId)
-                  return (
-                    <Box key={e.courseId} sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>{course?.title || 'Course'}</span>
-                      <Chip size="small" label={`${e.progress}% done`} />
-                    </Box>
-                  )
+              <Stack spacing={1} sx={{ my:1 }}>
+                {viewed.enrollments.length===0 && <Typography variant="body2" color="text.secondary">No enrollments.</Typography>}
+                {viewed.enrollments.map(e=>{
+                  const c = courses.find(x=>x.id===e.courseId)
+                  return <Box key={e.courseId} sx={{ display:'flex', justifyContent:'space-between' }}>
+                    <span>{c?.title||'Course'}</span><Chip size="small" label={`${e.progress}% done`}/>
+                  </Box>
                 })}
               </Stack>
 
-              <Typography variant="subtitle2" sx={{ mt: 2 }}>Chat Histories</Typography>
-              <Stack spacing={1} sx={{ mt: 1 }}>
-                {viewed.chats.map((c) => (
-                  <Box key={c.id} sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{c.title}</span>
-                    <Chip size="small" label={`${c.messageCount} msgs`} />
-                  </Box>
-                ))}
+              <Typography variant="subtitle2" sx={{ mt:2 }}>Chat Histories</Typography>
+              <Stack spacing={1} sx={{ mt:1 }}>
+                {viewed.chats.length===0 && <Typography variant="body2" color="text.secondary">No chats.</Typography>}
+                {viewed.chats.map(c=><Box key={c.id} sx={{ display:'flex', justifyContent:'space-between' }}>
+                  <span>{c.title}</span><Chip size="small" label={`${c.messageCount} msgs`}/>
+                </Box>)}
               </Stack>
             </>
-          ) : (
-            <Typography sx={{ p: 2 }}>No user selected.</Typography>
           )}
         </Box>
       </Drawer>
