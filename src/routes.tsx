@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import MainLayout from '@/layouts/MainLayout'
-import Chatbot from '@/pages/chatbot-page/Chatbot'
+import Chatbot from '@/pages/chatbot-page/ChatBot'
 import CoursesPage from '@/pages/courses-page/CoursesPage'
 import CourseDetailPage from '@/pages/courses-page/CourseDetailPage'
 import ModulePage from '@/pages/courses-page/ModulePage'
