@@ -7,6 +7,9 @@ const links = [
   { to: '/courses', label: 'Courses' },
   { to: '/admin/users', label: 'Edit Users' },
   { to: '/admin/courses', label: 'Edit Courses' },
+  {to: '/', label:
+    'Logout'
+  }
 ]
 
 export default function MainLayout() {
