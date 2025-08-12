@@ -1,253 +1,104 @@
-// src/components/Chatbot.tsx
-import React, { useState } from 'react'
-import {
-  Box,
-  Button,
-  Drawer,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  AppBar,
-  Toolbar,
-  Typography,
-  IconButton,
-  TextField,
-  Paper,
-  Divider
-} from '@mui/material'
-import {
-  Send as SendIcon,
-  SmartToy as BotIcon,
-  Person as UserIcon,
-  Add as PlusIcon,
-  ChatBubble as ChatBubbleIcon
-} from '@mui/icons-material'
+import React, { useMemo, useState } from 'react'
+import { Box, Button, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
+  Typography, IconButton, TextField, Paper } from '@mui/material'
+import { alpha } from '@mui/material/styles'
+import { Send, SmartToy, Person, Add, ChatBubble, Edit, Check, Close } from '@mui/icons-material'
+import { useAppDispatch, useAppSelector } from '../../store'
+import { createChat, sendMsg, setCur, editTitle } from '../../store/chatsSlice'
 
-interface Message {
-  id: string
-  content: string
-  isBot: boolean
-  timestamp: Date
-}
-
-interface Chat {
-  id: string
-  title: string
-  messages: Message[]
-  lastActive: Date
-}
-
-const drawerWidth = 250
+const NAVBAR = 64, SIDEBAR = 260
 
 export default function Chatbot() {
-  const [chats, setChats] = useState<Chat[]>([
-    {
-      id: '1',
-      title: 'AWS Learning Chat',
-      messages: [
-        {
-          id: '1',
-          content: "Hi! I'm your AWS learning assistant. Ask me anything.",
-          isBot: true,
-          timestamp: new Date()
-        }
-      ],
-      lastActive: new Date()
-    }
-  ])
-  const [currentChatId, setCurrentChatId] = useState('1')
-  const [inputMessage, setInputMessage] = useState('')
+  const dispatch = useAppDispatch()
+  const { chats, curId } = useAppSelector(state => state.chats)
+  const chat = useMemo(() => chats.find(c => c.id === curId)!, [chats, curId])
 
-  const currentChat = chats.find((c) => c.id === currentChatId)!
-  const msgs = currentChat.messages
+  const [input, setInput] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState('')
 
-  function createNewChat() {
-    const id = Date.now().toString()
-    const greeting: Message = {
-      id,
-      content: "Hi! I'm your AWS learning assistant. Ask me anything.",
-      isBot: true,
-      timestamp: new Date()
-    }
-    setChats((prev) => [
-      ...prev,
-      { id, title: `New Chat ${prev.length + 1}`, messages: [greeting], lastActive: new Date() }
-    ])
-    setCurrentChatId(id)
+  const create = () => {
+    dispatch(createChat())
+    setEditing(true)
+    setTitle(`New Chat ${chats.length + 1}`)
   }
 
-  function send() {
-    if (!inputMessage.trim()) return
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      content: inputMessage,
-      isBot: false,
-      timestamp: new Date()
-    }
-    const updated = [...msgs, userMsg]
-    setChats((prev) =>
-      prev.map((c) =>
-        c.id === currentChatId
-          ? { ...c, messages: updated, lastActive: new Date() }
-          : c
-      )
-    )
-    setInputMessage('')
-
+  const send = () => {
+    if (!input.trim()) return
+    dispatch(sendMsg({ content: input, isBot: false }))
+    setInput('')
     setTimeout(() => {
-      const botMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        content: 'Hi',
-        isBot: true,
-        timestamp: new Date()
-      }
-      setChats((prev) =>
-        prev.map((c) =>
-          c.id === currentChatId
-            ? { ...c, messages: [...updated, botMsg], lastActive: new Date() }
-            : c
-        )
-      )
-    }, 500)
+      dispatch(sendMsg({ content: 'Hi', isBot: true }))
+    }, 400)
+  }
+
+  const saveTitle = () => {
+    const t = title.trim() || chat.title
+    dispatch(editTitle(t))
+    setEditing(false)
   }
 
   return (
-    <Box sx={{ display: 'flex' }}>
-      {/* Permanent Drawer */}
-      <Drawer
-        variant="permanent"
-        sx={{
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: drawerWidth,
-            boxSizing: 'border-box'
-          }
-        }}
-        anchor="left"
-      >
-        <Box sx={{ p: 2 }}>
-          <Button
-            fullWidth
-            variant="contained"
-            color="primary"
-            startIcon={<PlusIcon />}
-            onClick={createNewChat}
-          >
-            New Chat
-          </Button>
-          <Divider sx={{ my: 2 }} />
-          <List>
-            {chats.map((c) => (
-              <ListItem key={c.id} disablePadding>
-                <ListItemButton
-                  selected={c.id === currentChatId}
-                  onClick={() => setCurrentChatId(c.id)}
-                >
-                  <ListItemIcon>
-                    <ChatBubbleIcon />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={c.title}
-                    secondary={c.lastActive.toLocaleDateString()}
-                  />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
+    <Box sx={{ position:'fixed', top: NAVBAR, left:0, right:0, bottom:0, display:'flex', bgcolor:'background.default' }}>
+      <Box sx={{ width: SIDEBAR, borderRight:1, borderColor:'divider', display:'flex', flexDirection:'column' }}>
+        <Box sx={{ p:2 }}>
+          <Button fullWidth variant="contained" startIcon={<Add/>} onClick={create}>New Chat</Button>
         </Box>
-      </Drawer>
+        <List dense sx={{ px:1, overflowY:'auto' }}>
+          {chats.map(c=>(
+            <ListItem key={c.id} disablePadding>
+              <ListItemButton selected={c.id===curId} onClick={()=>{dispatch(setCur(c.id)); setEditing(false)}}>
+                <ListItemIcon sx={{ minWidth:32 }}><ChatBubble fontSize="small"/></ListItemIcon>
+                <ListItemText primaryTypographyProps={{ noWrap:true }} primary={c.title} secondary={new Date(c.last).toLocaleDateString()}/>
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+      </Box>
 
-      {/* Main content */}
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          ml: `${drawerWidth}px`,
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
-        {/* Header */}
-        <AppBar position="static" color="primary">
-          <Toolbar>
-            <BotIcon sx={{ mr: 1 }} />
-            <Typography variant="h6">{currentChat.title}</Typography>
-          </Toolbar>
-        </AppBar>
+      <Box sx={{ flex:1, display:'flex', flexDirection:'column', minWidth:0 }}>
+        <Box sx={{ px:2, py:1, borderBottom:1, borderColor:'divider', display:'flex', alignItems:'center', gap:1,
+                   bgcolor:'primary.main', color:'primary.contrastText' }}>
+          <SmartToy/>
+          {!editing ? (
+            <>
+              <Typography variant="h6" sx={{ flex:1, cursor:'text' }} onDoubleClick={()=>{setTitle(chat.title); setEditing(true)}}>{chat.title}</Typography>
+              <IconButton size="small" sx={{ color:'inherit' }} onClick={()=>{setTitle(chat.title); setEditing(true)}}><Edit/></IconButton>
+            </>
+          ) : (
+            <>
+              <TextField size="small" autoFocus value={title} onChange={(e)=>setTitle(e.target.value)}
+                         onKeyDown={(e)=>{if(e.key==='Enter')saveTitle(); if(e.key==='Escape')setEditing(false)}}
+                         sx={{ bgcolor:'background.paper', borderRadius:1, minWidth:240, flex:1, '& .MuiInputBase-input':{ color:'text.primary' } }}/>
+              <IconButton size="small" sx={{ color:'inherit' }} onClick={saveTitle}><Check/></IconButton>
+              <IconButton size="small" sx={{ color:'inherit' }} onClick={()=>setEditing(false)}><Close/></IconButton>
+            </>
+          )}
+        </Box>
 
-        {/* Messages area */}
-        <Box
-          sx={{
-            flexGrow: 1,
-            overflowY: 'auto',
-            p: 2,
-            bgcolor: 'background.paper'
-          }}
-        >
-          {msgs.map((m) => (
-            <Box
-              key={m.id}
-              sx={{
-                display: 'flex',
-                flexDirection: m.isBot ? 'row' : 'row-reverse',
-                alignItems: 'flex-start',
-                mb: 2
-              }}
-            >
-              <IconButton disabled>
-                {m.isBot ? <BotIcon color="primary" /> : <UserIcon color="secondary" />}
-              </IconButton>
-              <Paper
-                elevation={1}
-                sx={{
-                  p: 1,
-                  maxWidth: '70%',
-                  bgcolor: m.isBot ? 'grey.100' : 'primary.lighter'
-                }}
-              >
-                <Typography variant="body2">{m.content}</Typography>
-                <Typography
-                  variant="caption"
-                  color="textSecondary"
-                  sx={{ mt: 0.5, display: 'block' }}
-                >
-                  {m.timestamp.toLocaleTimeString()}
+        <Box sx={{ flex:1, overflowY:'auto', p:3 }}>
+          {chat.msgs.map(m=>(
+            <Box key={m.id} sx={{ display:'flex', flexDirection:m.isBot?'row':'row-reverse', alignItems:'flex-start', gap:1.25, mb:1.25 }}>
+              <Box sx={{ mt:0.25, color:m.isBot?'primary.main':'secondary.main' }}>{m.isBot?<SmartToy fontSize="small"/>:<Person fontSize="small"/>}</Box>
+              <Paper variant={m.isBot?'outlined':'elevation'} elevation={m.isBot?0:1}
+                     sx={(t)=>({ px:1.5, py:1, maxWidth:'85%', borderRadius:2,
+                                 bgcolor:m.isBot?'background.paper':alpha(t.palette.primary.main, .08) })}>
+                <Typography variant="body2" sx={{ whiteSpace:'pre-wrap' }}>{m.content}</Typography>
+                <Typography variant="caption" sx={{ display:'block', mt:.5, color:'text.secondary', textAlign:m.isBot?'left':'right' }}>
+                  {new Date(m.ts).toLocaleTimeString()}
                 </Typography>
               </Paper>
             </Box>
           ))}
         </Box>
 
-        {/* Input area */}
-        <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
-            <TextField
-              fullWidth
-              multiline
-              minRows={2}
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  send()
-                }
-              }}
-              placeholder="Type your message here…"
-            />
-            <IconButton color="primary" onClick={send} disabled={!inputMessage.trim()}>
-              <SendIcon />
-            </IconButton>
-          </Box>
-          <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-            {['Generate EC2 Exam', 'Explain VPC', 'What is Lambda?'].map((t, i) => (
-              <Button key={i} size="small" variant="outlined" onClick={() => setInputMessage(t)}>
-                {t}
-              </Button>
-            ))}
-          </Box>
+        <Box sx={{ borderTop:1, borderColor:'divider', p:2 }}>
+          <Paper variant="outlined" sx={{ p:1, display:'flex', alignItems:'flex-end', gap:1, borderRadius:2 }}>
+            <TextField fullWidth multiline minRows={2} value={input} onChange={e=>setInput(e.target.value)}
+              onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send() } }} placeholder="Type your message here…" variant="standard"
+              InputProps={{ disableUnderline:true, sx:{ px:1 } }}/>
+            <IconButton color="primary" onClick={send} disabled={!input.trim()}><Send/></IconButton>
+          </Paper>
         </Box>
       </Box>
     </Box>
