@@ -1,3 +1,4 @@
+// src/pages/admin/CreateCoursePage.tsx
 import * as React from 'react'
 import {
   Box, Card, CardContent, CardHeader, TextField, Typography, Stack, Button,
@@ -123,10 +124,12 @@ export default function CreateCoursePage() {
             <Divider textAlign="left"><LinkIcon fontSize="small" /> Links</Divider>
             <Stack spacing={1}>
               {links.map((v,i)=>(
-                <Stack key={i} direction="row" spacing={1}>
+                <Stack key={i} direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                   <TextField fullWidth placeholder="https://docs.aws.amazon.com/..." value={v}
                     onChange={e=>changeIn(links,setLinks,i,e.target.value)} />
-                  <IconButton onClick={()=>removeRow(links,setLinks,i)}><DeleteIcon/></IconButton>
+                  <IconButton onClick={()=>removeRow(links,setLinks,i)} sx={{ alignSelf: { xs: 'flex-end', sm: 'center' } }}>
+                    <DeleteIcon/>
+                  </IconButton>
                 </Stack>
               ))}
               <Button startIcon={<Add/>} onClick={()=>addRow(links,setLinks)}>Add link</Button>
@@ -135,10 +138,12 @@ export default function CreateCoursePage() {
             <Divider textAlign="left"><VideoLibrary fontSize="small" /> Videos</Divider>
             <Stack spacing={1}>
               {videos.map((v,i)=>(
-                <Stack key={i} direction="row" spacing={1}>
+                <Stack key={i} direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                   <TextField fullWidth placeholder="https://www.youtube.com/watch?v=..." value={v}
                     onChange={e=>changeIn(videos,setVideos,i,e.target.value)} />
-                  <IconButton onClick={()=>removeRow(videos,setVideos,i)}><DeleteIcon/></IconButton>
+                  <IconButton onClick={()=>removeRow(videos,setVideos,i)} sx={{ alignSelf: { xs: 'flex-end', sm: 'center' } }}>
+                    <DeleteIcon/>
+                  </IconButton>
                 </Stack>
               ))}
               <Button startIcon={<Add/>} onClick={()=>addRow(videos,setVideos)}>Add video</Button>
@@ -157,7 +162,7 @@ export default function CreateCoursePage() {
               )}
             </Stack>
 
-            <Stack direction="row" spacing={1}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="outlined" onClick={()=>navigate('/admin/courses')}>Cancel</Button>
               <Button variant="contained" onClick={handleGenerate} disabled={!title.trim()}>Generate</Button>
             </Stack>

@@ -1,21 +1,22 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
-import { CssBaseline, ThemeProvider, createTheme } from '@mui/material'
+import { CssBaseline, ThemeProvider, createTheme, responsiveFontSizes } from '@mui/material'
 import { Provider } from 'react-redux'
 import { store } from './store'
 import '@fontsource/inter/400.css'
 import '@fontsource/inter/500.css'
 import '@fontsource/inter/700.css'
-const theme = createTheme({
+
+let theme = createTheme({
   palette: {
-primary: { main: '#0A192F' },   // Almost-black navy
-secondary: { main: '#64FFDA' }},
+    primary: { main: '#0A192F' },   // Almost-black navy
+    secondary: { main: '#64FFDA' }
+  },
   typography: {
     fontFamily: '"Inter","Roboto","Helvetica","Arial",sans-serif',
-    // font-display: FOR HEADING
-    // font-body: // FOR BODY
-  },  
+  },
+  shape: { borderRadius: 12 },
   components: {
     MuiAppBar: {
       styleOverrides: {
@@ -36,9 +37,12 @@ secondary: { main: '#64FFDA' }},
         },
       ],
     },
+    MuiContainer: {
+      defaultProps: { maxWidth: 'lg' }
+    },
   },
 });
-
+theme = responsiveFontSizes(theme);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

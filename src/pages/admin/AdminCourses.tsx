@@ -2,12 +2,13 @@ import * as React from 'react'
 import {
   Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  IconButton, Chip, Stack, Typography, Tooltip
+  IconButton, Chip, Stack, Typography, Tooltip, Card, CardContent, CardActions, useMediaQuery
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
 import AddIcon from '@mui/icons-material/Add'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import { useNavigate } from 'react-router-dom'
+import { useTheme } from '@mui/material/styles'
 
 import { useAppDispatch, useAppSelector } from '@/store'
 import { addCourse, deleteCourse, injectGeneratedFinalExam, injectGeneratedModule } from '@/store/coursesSlice'
@@ -16,6 +17,8 @@ export default function AdminCourses() {
   const navigate = useNavigate()
   const dispatch = useAppDispatch()
   const courses = useAppSelector((s) => s.courses.items)
+  const theme = useTheme()
+  const upSm = useMediaQuery(theme.breakpoints.up('sm'))
 
   const [open, setOpen] = React.useState(false)
   const [form, setForm] = React.useState({ title: '', difficulty: 'Beginner', services: '' })
@@ -28,7 +31,6 @@ export default function AdminCourses() {
   }
 
   const simulateGenerate = (courseId: string, courseTitle: string) => {
-    // Inject a module that conforms to the new shape: { id, title, sections: [...] }
     dispatch(injectGeneratedModule({
       courseId,
       module: {
@@ -109,56 +111,80 @@ export default function AdminCourses() {
         </Button>
       </Box>
 
-      <TableContainer component={Paper}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Title</TableCell>
-              <TableCell>Difficulty</TableCell>
-              <TableCell>Services</TableCell>
-              <TableCell>Modules</TableCell>
-              <TableCell>Final Exam</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {courses.map((c) => (
-              <TableRow key={c.id} hover>
-                <TableCell>{c.title}</TableCell>
-                <TableCell><Chip size="small" label={c.difficulty || 'N/A'} /></TableCell>
-                <TableCell>
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    {(c.awsServices?.slice(0, 5) || []).map((s) => <Chip key={s} size="small" label={s} />)}
-                  </Stack>
-                </TableCell>
-                <TableCell>
-                  <Chip size="small" color={c.modules?.length ? 'secondary' : 'default'} label={`${c.modules?.length ?? 0}`} />
-                </TableCell>
-                <TableCell>
-                  <Chip size="small" color={c.finalExam ? 'secondary' : 'default'} label={c.finalExam ? 'Yes' : 'No'} />
-                </TableCell>
-                <TableCell align="right">
-                  <Tooltip title="Simulate Generate Course (Module + Final)">
-                    <IconButton color="primary" onClick={() => simulateGenerate(c.id, c.title)}>
-                      <AutoAwesomeIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Delete Course">
-                    <IconButton color="error" onClick={() => dispatch(deleteCourse(c.id))}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </Tooltip>
-                </TableCell>
+      {upSm ? (
+        <TableContainer component={Paper}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Title</TableCell>
+                <TableCell>Difficulty</TableCell>
+                <TableCell>Services</TableCell>
+                <TableCell>Modules</TableCell>
+                <TableCell>Final Exam</TableCell>
+                <TableCell align="right">Actions</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {courses.map((c) => (
+                <TableRow key={c.id} hover>
+                  <TableCell>{c.title}</TableCell>
+                  <TableCell><Chip size="small" label={c.difficulty || 'N/A'} /></TableCell>
+                  <TableCell>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {(c.awsServices?.slice(0, 5) || []).map((s) => <Chip key={s} size="small" label={s} />)}
+                    </Stack>
+                  </TableCell>
+                  <TableCell>
+                    <Chip size="small" color={c.modules?.length ? 'secondary' : 'default'} label={`${c.modules?.length ?? 0}`} />
+                  </TableCell>
+                  <TableCell>
+                    <Chip size="small" color={c.finalExam ? 'secondary' : 'default'} label={c.finalExam ? 'Yes' : 'No'} />
+                  </TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="Simulate Generate Course (Module + Final)">
+                      <IconButton color="primary" onClick={() => simulateGenerate(c.id, c.title)}>
+                        <AutoAwesomeIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete Course">
+                      <IconButton color="error" onClick={() => dispatch(deleteCourse(c.id))}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      ) : (
+        <Stack spacing={1.5}>
+          {courses.map((c) => (
+            <Card key={c.id} variant="outlined">
+              <CardContent>
+                <Typography variant="subtitle1" sx={{ mb: 0.5 }}>{c.title}</Typography>
+                <Stack direction="row" spacing={1} sx={{ mb: 1 }} flexWrap="wrap">
+                  <Chip size="small" label={c.difficulty || 'N/A'} />
+                  <Chip size="small" label={`${c.modules?.length ?? 0} module(s)`} color={c.modules?.length ? 'secondary' : 'default'} />
+                  <Chip size="small" label={c.finalExam ? 'Final Exam: Yes' : 'Final Exam: No'} color={c.finalExam ? 'secondary' : 'default'} />
+                </Stack>
+                <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                  {(c.awsServices || []).slice(0, 6).map(s => <Chip key={s} size="small" label={s}/>)}
+                </Stack>
+              </CardContent>
+              <CardActions sx={{ justifyContent: 'flex-end' }}>
+                <Button size="small" onClick={() => simulateGenerate(c.id, c.title)} startIcon={<AutoAwesomeIcon/>}>Generate</Button>
+                <Button size="small" color="error" onClick={() => dispatch(deleteCourse(c.id))} startIcon={<DeleteIcon/>}>Delete</Button>
+              </CardActions>
+            </Card>
+          ))}
+        </Stack>
+      )}
 
       {/* Optional legacy dialog */}
       <Dialog open={open} onClose={() => setOpen(false)}>
         <DialogTitle>Create Course</DialogTitle>
-        <DialogContent sx={{ pt: 2, display: 'grid', gap: 2, minWidth: 420 }}>
+        <DialogContent sx={{ pt: 2, display: 'grid', gap: 2, minWidth: { xs: 320, sm: 420 } }}>
           <TextField label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus />
           <TextField label="Difficulty" value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })} placeholder="Beginner / Intermediate / Advanced" />
           <TextField label="AWS Services (comma-separated)" value={form.services} onChange={(e) => setForm({ ...form, services: e.target.value })} placeholder="Lambda, API Gateway, DynamoDB" />

@@ -1,18 +1,21 @@
-// src/pages/admin/AdminUsers.tsx
 import * as React from 'react'
 import {
   Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  IconButton, Chip, Drawer, Typography, Stack, Select, MenuItem, InputLabel, FormControl
+  IconButton, Chip, Drawer, Typography, Stack, Select, MenuItem, InputLabel, FormControl,
+  Card, CardContent, CardActions, useMediaQuery
 } from '@mui/material'
 import { Visibility, Edit, Save, PersonAdd, Delete } from '@mui/icons-material'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { addUser, deleteUser, selectUserById, updateUser } from '@/store/usersSlice'
+import { useTheme } from '@mui/material/styles'
 
 export default function AdminUsers() {
   const d = useAppDispatch()
   const users = useAppSelector(s => s.users.items)
   const courses = useAppSelector(s => s.courses.items)
+  const theme = useTheme()
+  const upSm = useMediaQuery(theme.breakpoints.up('sm'))
 
   const [open, setOpen] = React.useState(false)
   const [addForm, setAdd] = React.useState({ firstName:'', lastName:'', email:'', role:'learner' as 'learner'|'admin' })
@@ -34,34 +37,53 @@ export default function AdminUsers() {
         <Button startIcon={<PersonAdd/>} variant="contained" onClick={() => setOpen(true)}>Add User</Button>
       </Box>
 
-      <TableContainer component={Paper}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Name</TableCell><TableCell>Email</TableCell><TableCell>Role</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {users.map(u => (
-              <TableRow key={u.id} hover>
-                <TableCell>{u.firstName} {u.lastName}</TableCell>
-                <TableCell>{u.email}</TableCell>
-                <TableCell><Chip size="small" color={u.role==='admin'?'secondary':'default'} label={u.role}/></TableCell>
-                <TableCell align="right">
-                  <IconButton color="primary" onClick={()=>{setView(u.id); setEdit(false)}}><Visibility/></IconButton>
-                  <IconButton color="primary" onClick={()=>{setView(u.id); setEdit(true)}}><Edit/></IconButton>
-                  <IconButton color="error" onClick={()=>d(deleteUser(u.id))}><Delete/></IconButton>
-                </TableCell>
+      {upSm ? (
+        <TableContainer component={Paper}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Name</TableCell><TableCell>Email</TableCell><TableCell>Role</TableCell>
+                <TableCell align="right">Actions</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {users.map(u => (
+                <TableRow key={u.id} hover>
+                  <TableCell>{u.firstName} {u.lastName}</TableCell>
+                  <TableCell>{u.email}</TableCell>
+                  <TableCell><Chip size="small" color={u.role==='admin'?'secondary':'default'} label={u.role}/></TableCell>
+                  <TableCell align="right">
+                    <IconButton color="primary" onClick={()=>{setView(u.id); setEdit(false)}}><Visibility/></IconButton>
+                    <IconButton color="primary" onClick={()=>{setView(u.id); setEdit(true)}}><Edit/></IconButton>
+                    <IconButton color="error" onClick={()=>d(deleteUser(u.id))}><Delete/></IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      ) : (
+        <Stack spacing={1.5}>
+          {users.map(u => (
+            <Card key={u.id} variant="outlined">
+              <CardContent>
+                <Typography variant="subtitle1">{u.firstName} {u.lastName}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{u.email}</Typography>
+                <Chip size="small" color={u.role==='admin'?'secondary':'default'} label={u.role}/>
+              </CardContent>
+              <CardActions sx={{ justifyContent: 'flex-end' }}>
+                <Button size="small" onClick={()=>{setView(u.id); setEdit(false)}} startIcon={<Visibility/>}>View</Button>
+                <Button size="small" onClick={()=>{setView(u.id); setEdit(true)}} startIcon={<Edit/>}>Edit</Button>
+                <Button size="small" color="error" onClick={()=>d(deleteUser(u.id))} startIcon={<Delete/>}>Delete</Button>
+              </CardActions>
+            </Card>
+          ))}
+        </Stack>
+      )}
 
       <Dialog open={open} onClose={()=>setOpen(false)}>
         <DialogTitle>Add User</DialogTitle>
-        <DialogContent sx={{ pt:2, display:'grid', gap:2, minWidth:420 }}>
+        <DialogContent sx={{ pt:2, display:'grid', gap:2, minWidth:{ xs: 320, sm: 420 } }}>
           <TextField label="First name" value={addForm.firstName} onChange={e=>setAdd({...addForm, firstName:e.target.value})}/>
           <TextField label="Last name"  value={addForm.lastName}  onChange={e=>setAdd({...addForm, lastName:e.target.value})}/>
           <TextField label="Email" type="email" value={addForm.email} onChange={e=>setAdd({...addForm, email:e.target.value})}/>
@@ -83,7 +105,7 @@ export default function AdminUsers() {
       </Dialog>
 
       <Drawer anchor="right" open={!!viewId} onClose={()=>setView(null)}>
-        <Box sx={{ width:420, p:2 }}>
+        <Box sx={{ width:{ xs: 320, sm: 420 }, p:2 }}>
           {!viewed ? <Typography>No user selected.</Typography> : (
             <>
               <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1.5 }}>
