@@ -13,6 +13,7 @@ import SignUp from '@/pages/signin/Signup'
 import EmailVerification from '@/pages/signin/EmailVerification'
 import CreatePassword from '@/pages/signin/CreatePassword'
 import CreateCoursePage from '@/pages/admin/CreateCoursePage'
+import OrganizationPage from '@/pages/superadmin/OrganizationPage'
 const router = createBrowserRouter([
   // Routes without navbar (outside MainLayout)
   { path: '/', element: <SignUp /> },
@@ -32,6 +33,9 @@ const router = createBrowserRouter([
       { path: '/admin/courses', element: <AdminCourses /> },
       { path: '/admin/courses/new', element: <CreateCoursePage /> },
       { path: '/courses/:id/modules/:moduleId/sections/:sectionId', element: <SectionPage /> },
+      {path:'organizations', element:
+  <OrganizationPage />
+       },
     ],
   },
 ])
