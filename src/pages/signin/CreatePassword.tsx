@@ -1,6 +1,6 @@
 // src/pages/CreatePassword.tsx
 import { useState } from "react";
-import { useNavigate, Link as RouterLink } from "react-router-dom";
+import { useNavigate} from "react-router-dom";
 import {
     Button,
     TextField,
@@ -9,7 +9,6 @@ import {
     CardContent,
     CardHeader,
     Box,
-    Link,
 } from "@mui/material";
 
 import "./Signup.css";
@@ -33,16 +32,12 @@ export default function CreatePassword() {
 
     return (
         <Box className="signup-page" sx={{ bgcolor: "background.default", color: "text.primary" }}>
-            <Box className="signup-container">
-                <div className="signup-logo">
-                    <img src="/logo.png" alt="Logo" className="icon" />
-                </div>
                 <Card>
                     <CardHeader
                         title={<Typography variant="h5" color="primary">Create Password</Typography>}
                     />
                     <CardContent>
-                        <form onSubmit={handleSubmit} className="create-password-form">
+                        <form onSubmit={handleSubmit}>
                             <TextField
                                 label="Create Password"
                                 type="password"
@@ -78,6 +73,5 @@ export default function CreatePassword() {
                     </CardContent>
                 </Card>
             </Box>
-        </Box>
     );
 }

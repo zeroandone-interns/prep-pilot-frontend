@@ -5,21 +5,71 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 2rem;
+    padding: 1rem;
+    background: linear-gradient(90deg,
+            rgba(10, 25, 47, 0.8),
+            /* primary with low opacity */
+            rgba(100, 255, 218, 0.5)
+            /* secondary with low opacity */
+        );
+
+}
+
+.signup-card {
+    display: flex;
+    width: 900px;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
 .signup-container {
+    display: flex;
     width: 100%;
-    max-width: 400px;
-    text-align: center;
+}
+
+.signup-left {
+    flex: 1;
+    padding: 3rem 4rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    row-gap: 1.5rem;
+}
+
+.signup-right {
+    flex: 1;
+    background-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    box-sizing: border-box;
+}
+
+.signup-image {
+    width: 100%;
+    height: 100%;
+    border-radius: 24px;
+}
+
+.signup-logo {
+    width: 100px;                 /* size of the badge */
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;          /* makes it circular */
+    background: linear-gradient(
+        135deg,
+        #0A192F,                /* primary theme color */
+        #64FFDA                 /* secondary theme color */
+    );
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* subtle depth/floating effect */
+    margin-bottom: 0auto 1.5rem;      /* spacing from the heading */
 }
 
 .signup-logo .icon {
-    width: 150px;
-    height: 150px;
-    margin: 0 auto 1rem auto;
-}
-
-.create-password-form{
-    margin-top: 1rem;
+    width: 100%;                  /* size relative to badge */
+    height: auto;
 }

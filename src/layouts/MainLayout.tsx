@@ -13,11 +13,11 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '@mui/material/styles'
 
 const links = [
-  { to: '/chatbot', label: 'Chatbot', icon: <ChatBubbleIcon/> },
-  { to: '/courses', label: 'Courses', icon: <LibraryBooksIcon/> },
-  { to: '/admin/users', label: 'Edit Users', icon: <PeopleIcon/> },
-  { to: '/admin/courses', label: 'Edit Courses', icon: <SchoolIcon/> },
-  { to: '/', label: 'Logout', icon: <LogoutIcon/> },
+  { to: '/chatbot', label: 'Chatbot', icon: <ChatBubbleIcon /> },
+  { to: '/courses', label: 'Courses', icon: <LibraryBooksIcon /> },
+  { to: '/admin/users', label: 'Edit Users', icon: <PeopleIcon /> },
+  { to: '/admin/courses', label: 'Edit Courses', icon: <SchoolIcon /> },
+  { to: '/', label: 'Logout', icon: <LogoutIcon /> },
 ]
 
 export default function MainLayout() {
@@ -37,7 +37,7 @@ export default function MainLayout() {
             onClick={() => { navigate(l.to); setOpen(false) }}
           >
             <ListItemIcon>{l.icon}</ListItemIcon>
-            <ListItemText primary={l.label}/>
+            <ListItemText primary={l.label} />
           </ListItemButton>
         ))}
       </List>
@@ -54,7 +54,7 @@ export default function MainLayout() {
             </IconButton>
           )}
           <Box component="img" src="/new_logo_3.png" alt="PrepPilot Logo"
-               sx={{ height: 48, width: 'auto', mr: 1, display: 'block' }} />
+            sx={{ height: 48, width: 'auto', mr: 1, display: 'block' }} />
           <Typography variant="h6" sx={{ flexGrow: 1 }}>PrepPilot</Typography>
 
           {upMd && links.map((l) => (

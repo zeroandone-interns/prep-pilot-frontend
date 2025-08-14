@@ -1,4 +1,3 @@
-// src/pages/Signup.tsx
 import { useState } from "react";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import {
@@ -6,12 +5,9 @@ import {
     TextField,
     Typography,
     Card,
-    CardContent,
-    CardHeader,
     Box,
     Link
 } from "@mui/material";
-
 import "./Signup.css";
 
 export default function Signup() {
@@ -26,69 +22,53 @@ export default function Signup() {
     };
 
     return (
-        <Box className="signup-page" sx={{ bgcolor: "background.default", color: "text.primary" }}>
-            <Box className="signup-container">
-                <div className="signup-logo">
-                    <img src="/logo-for-login.png" alt="Logo" className="icon" />
-                </div>
-                <Card>
-                    <CardHeader
-                        title={
-                            <Typography variant="h5" color="primary">
-                                Login
-                            </Typography>
-                        }
-                    />
-                    <CardContent>
-                        <form onSubmit={handleSubmit} style={{ marginTop: "1rem" }}>
-                            <TextField
-                                label="Email"
-                                type="email"
-                                required
-                                fullWidth
-                                variant="outlined"
-                                margin="normal"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                autoComplete="off"
-                            />
-                            <TextField
-                                label="Password"
-                                type="password"
-                                required
-                                fullWidth
-                                variant="outlined"
-                                margin="normal"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                autoComplete="new-password"
-                            />
-                            <Button
-                                type="submit"
-                                variant="contained"
-                                color="primary"
-                                fullWidth
-                                sx={{ mt: 2 }}
+        <Box className="signup-page">
+            <Card className="signup-card">
+                <Box className="signup-container">
+
+                    {/* LEFT SIDE */}
+                    <Box className="signup-left">
+                        <Box className="signup-logo">
+                            <img src="/new_logo_3.png" alt="Logo" className="icon" />
+                        </Box>
+
+                        <Typography variant="h4" fontWeight={700} component="div" sx={{ lineHeight: 1.2 }}>
+                            Welcome to PrepPilot!
+                            <Typography
+                                component="div"      // forces a block (new line)
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ fontWeight: 400, lineHeight: 1.3 }}
                             >
-                                Submit
+                                Your personal AI-powered learning assistant
+                            </Typography>
+                        </Typography>
+
+
+                        <form onSubmit={handleSubmit}>
+                            <TextField label="Email" type="email" fullWidth margin="normal" />
+                            <TextField label="Password" type="password" fullWidth margin="normal" />
+
+                            <Box sx={{ textAlign: "right", mt: 0.5 }}>
+                                <Link component={RouterLink} to="/email-verification">
+                                    Forgot Password?
+                                </Link>
+                            </Box>
+
+                            <Button type="submit" variant="contained" fullWidth sx={{ mt: 2 }}>
+                                Sign In
                             </Button>
                         </form>
+                    </Box>
 
-                        <Box mt={2}>
-                            <Link
-                            component={RouterLink}
-                            to="/email-verification"
-                            underline="hover"
-                            align="left"
-                            color="secondary"
-                            fontWeight={500}
-                            >
-                                Create password
-                            </Link>
-                        </Box>
-                    </CardContent>
-                </Card>
-            </Box>
+                    {/* RIGHT SIDE IMAGE */}
+                    <Box className="signup-right">
+                        <img src="/signin-image.png" alt="Illustration" className="signup-image" />
+                    </Box>
+
+                </Box>
+            </Card>
         </Box>
+
     );
 }
