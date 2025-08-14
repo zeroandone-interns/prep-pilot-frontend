@@ -1,3 +1,4 @@
+// src/pages/superadmin/OrganizationsPage.tsx
 import * as React from 'react'
 import {
   Box, Typography, Button, Stack, Paper, TextField, Chip, IconButton, Tooltip,
@@ -33,7 +34,6 @@ type Organization = {
   admins: AdminUser[]
   usersCount: number
   coursesCount: number
-  // Optionally domains or tags later
 }
 
 // ------------------------
@@ -62,6 +62,22 @@ const SEED_ORGS: Organization[] = [
     coursesCount: 7,
   },
 ]
+
+// Subtle email chip (no secondary color)
+function EmailChip({ email }: { email: string }) {
+  return (
+    <Chip
+      size="small"
+      variant="outlined"
+      label={email}
+      sx={(t) => ({
+        color: t.palette.text.secondary,
+        borderColor: alpha(t.palette.text.primary, 0.2),
+        bgcolor: 'transparent',
+      })}
+    />
+  )
+}
 
 // ------------------------
 // Page
@@ -97,9 +113,7 @@ export default function OrganizationsPage() {
     )
   }, [orgs, filter])
 
-  // ------------------------
   // Handlers (replace with API calls later)
-  // ------------------------
   function createOrg() {
     const name = createForm.name.trim()
     if (!name) return
@@ -111,48 +125,31 @@ export default function OrganizationsPage() {
       usersCount: 0,
       coursesCount: 0,
     }
-    // TODO: POST /api/organizations
     setOrgs(prev => [newOrg, ...prev])
     setCreateForm({ name: '' })
     setCreateOpen(false)
   }
-
-  function askDelete(org: Organization) {
-    setToDelete(org)
-    setConfirmOpen(true)
-  }
-
+  function askDelete(org: Organization) { setToDelete(org); setConfirmOpen(true) }
   function confirmDelete() {
     if (!toDelete) return
-    // TODO: DELETE /api/organizations/:id
     setOrgs(prev => prev.filter(o => o.id !== toDelete.id))
     if (viewId === toDelete.id) setViewId(null)
-    setConfirmOpen(false)
-    setToDelete(null)
+    setConfirmOpen(false); setToDelete(null)
   }
-
   function addAdmin() {
     if (!viewed) return
-    const fn = adminForm.firstName.trim()
-    const ln = adminForm.lastName.trim()
-    const em = adminForm.email.trim()
+    const fn = adminForm.firstName.trim(), ln = adminForm.lastName.trim(), em = adminForm.email.trim()
     if (!fn || !ln || !em) return
     const newAdmin: AdminUser = { id: `a-${Date.now()}`, firstName: fn, lastName: ln, email: em }
-    // TODO: POST /api/organizations/:id/admins
     setOrgs(prev => prev.map(o => o.id === viewed.id ? { ...o, admins: [...o.admins, newAdmin] } : o))
-    setAdminForm({ firstName: '', lastName: '', email: '' })
-    setAddAdminOpen(false)
+    setAdminForm({ firstName: '', lastName: '', email: '' }); setAddAdminOpen(false)
   }
-
   function removeAdmin(adminId: string) {
     if (!viewed) return
-    // TODO: DELETE /api/organizations/:id/admins/:adminId
     setOrgs(prev => prev.map(o => o.id === viewed.id ? { ...o, admins: o.admins.filter(a => a.id !== adminId) } : o))
   }
 
-  // ------------------------
   // UI
-  // ------------------------
   return (
     <Box>
       {/* Header */}
@@ -167,9 +164,7 @@ export default function OrganizationsPage() {
             placeholder="Search organizations or admins…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            InputProps={{
-              startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />,
-            }}
+            InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> }}
           />
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateOpen(true)}>
             New Organization
@@ -179,7 +174,6 @@ export default function OrganizationsPage() {
 
       {/* Content */}
       {upSm ? (
-        // Desktop: table
         <TableContainer component={Paper}>
           <Table size="small">
             <TableHead>
@@ -201,7 +195,7 @@ export default function OrganizationsPage() {
                   <TableCell>
                     <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                       {o.admins.slice(0, 4).map(a => (
-                        <Chip key={a.id} size="small" color="secondary" variant="outlined" label={a.email} />
+                        <EmailChip key={a.id} email={a.email} />
                       ))}
                       {o.admins.length > 4 && <Chip size="small" label={`+${o.admins.length - 4}`} />}
                     </Stack>
@@ -234,7 +228,6 @@ export default function OrganizationsPage() {
           </Table>
         </TableContainer>
       ) : (
-        // Mobile: cards
         <Stack spacing={1.25}>
           {filtered.map((o) => (
             <Card key={o.id} variant="outlined" sx={{ borderRadius: 3, borderColor: alpha(theme.palette.primary.main, 0.18) }}>
@@ -246,7 +239,7 @@ export default function OrganizationsPage() {
                   <Chip size="small" label={`Created ${new Date(o.createdAt).toLocaleDateString()}`} />
                 </Stack>
                 <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                  {o.admins.slice(0, 3).map(a => <Chip key={a.id} size="small" color="secondary" variant="outlined" label={a.email} />)}
+                  {o.admins.slice(0, 3).map(a => <EmailChip key={a.id} email={a.email} />)}
                   {o.admins.length > 3 && <Chip size="small" label={`+${o.admins.length - 3}`} />}
                 </Stack>
               </CardContent>
@@ -294,7 +287,7 @@ export default function OrganizationsPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Drawer: manage admins (superAdmin can only manage admins, not inner content) */}
+      {/* Drawer: manage admins */}
       <Drawer anchor="right" open={!!viewId} onClose={() => setViewId(null)}>
         <Box sx={{ width: { xs: 320, sm: 420 }, p: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
           {!viewed ? (
@@ -329,6 +322,7 @@ export default function OrganizationsPage() {
                       <ListItemText
                         primary={`${a.firstName} ${a.lastName}`}
                         secondary={a.email}
+                        secondaryTypographyProps={{ color: 'text.secondary' }} // also subtle here
                       />
                       <ListItemSecondaryAction>
                         <Tooltip title="Remove admin">
