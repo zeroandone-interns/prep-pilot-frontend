@@ -1,5 +1,5 @@
 // src/pages/superadmin/OrganizationsPage.tsx
-// Uses VITE_API_URL from your frontend .env (e.g., VITE_API_URL=http://localhost:3000)
+// Requires: VITE_API_URL in your frontend .env (e.g., VITE_API_URL=http://localhost:3000)
 
 import * as React from 'react'
 import {
@@ -11,14 +11,18 @@ import {
 import { useTheme } from '@mui/material/styles'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
+import EditIcon from '@mui/icons-material/Edit'
+import SaveIcon from '@mui/icons-material/Save'
+import CloseIcon from '@mui/icons-material/Close'
 import BusinessIcon from '@mui/icons-material/Business'
 import SearchIcon from '@mui/icons-material/Search'
 import GroupIcon from '@mui/icons-material/Group'
 import PersonRemoveIcon from '@mui/icons-material/PersonRemove'
 import PersonAddIcon from '@mui/icons-material/PersonAdd'
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
+import PersonOffIcon from '@mui/icons-material/PersonOff'
 import axios, { AxiosError, AxiosHeaders } from 'axios'
-import type { InternalAxiosRequestConfig} from 'axios'
+import type { InternalAxiosRequestConfig } from 'axios'
 
 type ApiOrg = { id: number; name: string; usersCount: number; coursesCount: number }
 type Organization = { id: number; name: string; usersCount: number; coursesCount: number }
@@ -66,6 +70,11 @@ export default function OrganizationsPage() {
   // Create org
   const [createOpen, setCreateOpen] = React.useState(false)
   const [createName, setCreateName] = React.useState('')
+
+  // Edit org
+  const [editOpen, setEditOpen] = React.useState(false)
+  const [editOrg, setEditOrg] = React.useState<Organization | null>(null)
+  const [editName, setEditName] = React.useState('')
 
   // Delete org
   const [confirmOpen, setConfirmOpen] = React.useState(false)
@@ -118,6 +127,7 @@ export default function OrganizationsPage() {
     return q ? orgs.filter(o => o.name.toLowerCase().includes(q)) : orgs
   }, [orgs, filter])
 
+  // ---------- Create ----------
   async function createOrg() {
     const name = createName.trim()
     if (!name) return
@@ -134,6 +144,33 @@ export default function OrganizationsPage() {
     }
   }
 
+  // ---------- Edit ----------
+  function openEdit(o: Organization) {
+    setEditOrg(o)
+    setEditName(o.name)
+    setEditOpen(true)
+  }
+  async function saveEdit() {
+    if (!editOrg) return
+    const newName = editName.trim()
+    if (!newName || newName === editOrg.name) {
+      setEditOpen(false)
+      return
+    }
+    try {
+      const { data } = await api.patch<ApiOrg>(`/organizations/${editOrg.id}`, { name: newName })
+      setOrgs(prev => prev.map(o => o.id === editOrg.id ? {
+        id: data.id, name: data.name, usersCount: data.usersCount, coursesCount: data.coursesCount
+      } : o))
+      setSuccess('Organization updated')
+      setEditOpen(false)
+      setEditOrg(null)
+    } catch (e) {
+      onAxiosError(e, 'Failed to update organization')
+    }
+  }
+
+  // ---------- Delete ----------
   async function confirmDelete() {
     if (!toDelete) return
     try {
@@ -147,7 +184,7 @@ export default function OrganizationsPage() {
     }
   }
 
-  // ----- Instructors -----
+  // ---------- Instructors ----------
   async function openInstructors(org: Organization) {
     setInstOrg(org)
     setInstFilter('')
@@ -201,6 +238,19 @@ export default function OrganizationsPage() {
     }
   }
 
+  // Delete instructor entirely (Cognito + DB) using /users/:sub
+  async function deleteInstructorEverywhere(cognitoSub: string) {
+    if (!instOrg) return
+    try {
+      await api.delete(`/users/${encodeURIComponent(cognitoSub)}`)
+      await loadInstructors(instOrg.id)
+      setOrgs(prev => prev.map(o => o.id === instOrg.id ? { ...o, usersCount: Math.max(0, o.usersCount - 1) } : o))
+      setSuccess(`User with sub ${cognitoSub} deleted from Cognito & DB`)
+    } catch (e) {
+      onAxiosError(e, 'Failed to delete user from Cognito/DB')
+    }
+  }
+
   const filteredInstructors = React.useMemo(() => {
     const q = instFilter.trim().toLowerCase()
     if (!q) return instructors
@@ -217,8 +267,8 @@ export default function OrganizationsPage() {
       email: '',
       firstName: '',
       lastName: '',
-      role: 'instructor',         // default to instructor (admin in your wording)
-      organizationId: org.id,     // auto-fill from selected org
+      role: 'instructor',
+      organizationId: org.id,
     })
     setAdminCreateOpen(true)
   }
@@ -234,10 +284,12 @@ export default function OrganizationsPage() {
       setAdminSubmitting(false)
       setAdminCreateOpen(false)
       setSuccess('User created and attached to organization')
-      // If the dialog was opened from a specific org, refresh that org's instructors & bump count
       if (instOrg && instOrg.id === adminForm.organizationId) {
         await loadInstructors(instOrg.id)
         setOrgs(prev => prev.map(o => o.id === instOrg.id ? { ...o, usersCount: o.usersCount + 1 } : o))
+      } else {
+        // reload org list to refresh counts
+        await load()
       }
     } catch (e) {
       setAdminSubmitting(false)
@@ -288,6 +340,11 @@ export default function OrganizationsPage() {
                 <TableCell align="right">{o.usersCount}</TableCell>
                 <TableCell align="right">{o.coursesCount}</TableCell>
                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                  <Tooltip title="Edit Organization">
+                    <IconButton onClick={() => openEdit(o)}>
+                      <EditIcon />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title="Manage Instructors">
                     <IconButton onClick={() => openInstructors(o)}>
                       <GroupIcon />
@@ -332,6 +389,26 @@ export default function OrganizationsPage() {
         <DialogActions>
           <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={createOrg} disabled={!createName.trim()}>Create</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit dialog */}
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)}>
+        <DialogTitle>Edit organization</DialogTitle>
+        <DialogContent sx={{ pt: 2, display: 'grid', gap: 2, minWidth: { xs: 320, sm: 420 } }}>
+          <TextField
+            autoFocus
+            label="Organization name"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            placeholder="Organization name"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button startIcon={<CloseIcon />} onClick={() => setEditOpen(false)}>Cancel</Button>
+          <Button startIcon={<SaveIcon />} variant="contained" onClick={saveEdit} disabled={!editName.trim()}>
+            Save
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -388,11 +465,22 @@ export default function OrganizationsPage() {
               <ListItem
                 key={i.id}
                 secondaryAction={
-                  <Tooltip title="Remove from organization">
-                    <IconButton edge="end" color="error" onClick={() => removeInstructor(i.id)}>
-                      <PersonRemoveIcon />
-                    </IconButton>
-                  </Tooltip>
+                  <Stack direction="row" spacing={0.5}>
+                    {/* Remove from org */}
+                    <Tooltip title="Remove from organization">
+                      <IconButton edge="end" color="error" onClick={() => removeInstructor(i.id)}>
+                        <PersonRemoveIcon />
+                      </IconButton>
+                    </Tooltip>
+                    {/* Delete user everywhere (Cognito + DB) */}
+                    {i.cognito_sub && (
+                      <Tooltip title="Delete user (Cognito + DB)">
+                        <IconButton edge="end" onClick={() => deleteInstructorEverywhere(i.cognito_sub!)}>
+                          <PersonOffIcon />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Stack>
                 }
               >
                 <ListItemText
