@@ -1,155 +1,284 @@
 // src/pages/superadmin/OrganizationsPage.tsx
+// Requires VITE_API_URL in your frontend .env (e.g., VITE_API_URL=http://localhost:3000)
+
 import * as React from 'react'
 import {
   Box, Typography, Button, Stack, Paper, TextField, Chip, IconButton, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Card, CardContent, CardActions,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Drawer, Divider, List, ListItem, ListItemText, ListItemSecondaryAction,
-  useMediaQuery
+  useMediaQuery, Snackbar, Alert, Divider, List, ListItem, ListItemText, Grid
 } from '@mui/material'
-import { useTheme, alpha } from '@mui/material/styles'
+import { useTheme } from '@mui/material/styles'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
-import GroupAddIcon from '@mui/icons-material/GroupAdd'
-import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
+import EditIcon from '@mui/icons-material/Edit'
+import SaveIcon from '@mui/icons-material/Save'
+import CloseIcon from '@mui/icons-material/Close'
 import BusinessIcon from '@mui/icons-material/Business'
 import SearchIcon from '@mui/icons-material/Search'
-import CloseIcon from '@mui/icons-material/Close'
+import GroupIcon from '@mui/icons-material/Group'
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
+import PersonOffIcon from '@mui/icons-material/PersonOff'
+import axios, { AxiosError, AxiosHeaders } from 'axios'
+import type { InternalAxiosRequestConfig } from 'axios'
 
-// ------------------------
-// Types (frontend-only)
-// ------------------------
-type AdminUser = {
-  id: string
+/** Backend payloads */
+type ApiOrg = { id: number; name: string; usersCount: number; coursesCount: number }
+type Organization = { id: number; name: string; usersCount: number; coursesCount: number }
+
+/** DB user row from OrganizationsService.listInstructors */
+type DbInstructor = { id: number; cognito_sub: string | null; organization_id: number | null }
+
+/** Enriched instructor row (DB + Cognito), UI-only fields */
+type UiInstructor = {
+  id: number
+  sub: string | null       // used internally for delete endpoint
+  email?: string | null
+  firstName?: string | null
+  lastName?: string | null
+}
+
+/** Matches AdminCreateUserDto (backend) */
+type AdminCreateUserBody = {
+  email: string
   firstName: string
   lastName: string
-  email: string
+  role: 'instructor' | 'learner'
+  organizationId: number
 }
 
-type Organization = {
-  id: string
-  name: string
-  createdAt: string
-  admins: AdminUser[]
-  usersCount: number
-  coursesCount: number
-}
+const api = axios.create({
+  baseURL: (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000',
+})
 
-// ------------------------
-// Mock seed (replace via API later)
-// ------------------------
-const SEED_ORGS: Organization[] = [
-  {
-    id: 'o-1001',
-    name: 'Acme Corp',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 20).toISOString(),
-    admins: [
-      { id: 'a-1', firstName: 'Dana', lastName: 'Lee', email: 'dana@acme.com' },
-      { id: 'a-2', firstName: 'Tom', lastName: 'Green', email: 'tom@acme.com' },
-    ],
-    usersCount: 184,
-    coursesCount: 12,
-  },
-  {
-    id: 'o-1002',
-    name: 'Globex',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 9).toISOString(),
-    admins: [
-      { id: 'a-3', firstName: 'Maya', lastName: 'R.', email: 'maya@globex.io' },
-    ],
-    usersCount: 63,
-    coursesCount: 7,
-  },
-]
+/** Attach Authorization header if localStorage.jwt exists */
+api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const token = localStorage.getItem('jwt')
+  if (token) {
+    const h = config.headers
+    if (h && typeof (h as AxiosHeaders).set === 'function') {
+      ;(h as AxiosHeaders).set('Authorization', `Bearer ${token}`)
+    } else {
+      config.headers = { ...(h as any), Authorization: `Bearer ${token}` }
+    }
+  }
+  return config
+})
 
-// Subtle email chip (no secondary color)
-function EmailChip({ email }: { email: string }) {
-  return (
-    <Chip
-      size="small"
-      variant="outlined"
-      label={email}
-      sx={(t) => ({
-        color: t.palette.text.secondary,
-        borderColor: alpha(t.palette.text.primary, 0.2),
-        bgcolor: 'transparent',
-      })}
-    />
-  )
-}
-
-// ------------------------
-// Page
-// ------------------------
 export default function OrganizationsPage() {
   const theme = useTheme()
   const upSm = useMediaQuery(theme.breakpoints.up('sm'))
 
-  const [orgs, setOrgs] = React.useState<Organization[]>(SEED_ORGS)
+  const [orgs, setOrgs] = React.useState<Organization[]>([])
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [success, setSuccess] = React.useState<string | null>(null)
   const [filter, setFilter] = React.useState('')
 
+  // Create org
   const [createOpen, setCreateOpen] = React.useState(false)
-  const [createForm, setCreateForm] = React.useState({ name: '' })
+  const [createName, setCreateName] = React.useState('')
 
+  // Edit org
+  const [editOpen, setEditOpen] = React.useState(false)
+  const [editOrg, setEditOrg] = React.useState<Organization | null>(null)
+  const [editName, setEditName] = React.useState('')
+
+  // Delete org
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [toDelete, setToDelete] = React.useState<Organization | null>(null)
 
-  const [viewId, setViewId] = React.useState<string | null>(null)
-  const viewed = React.useMemo(() => orgs.find(o => o.id === viewId) || null, [orgs, viewId])
+  // Instructors dialog
+  const [instOpen, setInstOpen] = React.useState(false)
+  const [instOrg, setInstOrg] = React.useState<Organization | null>(null)
+  const [instructors, setInstructors] = React.useState<UiInstructor[]>([])
+  const [instLoading, setInstLoading] = React.useState(false)
+  const [instFilter, setInstFilter] = React.useState('')
 
-  const [addAdminOpen, setAddAdminOpen] = React.useState(false)
-  const [adminForm, setAdminForm] = React.useState({ firstName: '', lastName: '', email: '' })
+  // Add Instructor (email + first/last name)
+  const [email, setEmail] = React.useState('')
+  const [firstName, setFirstName] = React.useState('')
+  const [lastName, setLastName] = React.useState('')
+  const [creatingInstructor, setCreatingInstructor] = React.useState(false)
+
+  const onAxiosError = (e: unknown, fallback: string) => {
+    if (axios.isAxiosError(e)) {
+      const ae = e as AxiosError<any>
+      setError(ae.response?.data?.message || ae.message || fallback)
+    } else setError(fallback)
+  }
+
+  const load = React.useCallback(async () => {
+    setLoading(true); setError(null)
+    try {
+      const { data } = await api.get<ApiOrg[]>('/organizations')
+      setOrgs(data.map(o => ({
+        id: o.id, name: o.name, usersCount: o.usersCount, coursesCount: o.coursesCount
+      })))
+    } catch (e) {
+      onAxiosError(e, 'Failed to load organizations')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => { load() }, [load])
 
   const filtered = React.useMemo(() => {
     const q = filter.trim().toLowerCase()
-    if (!q) return orgs
-    return orgs.filter(o =>
-      o.name.toLowerCase().includes(q) ||
-      o.admins.some(a =>
-        a.email.toLowerCase().includes(q) ||
-        (a.firstName + ' ' + a.lastName).toLowerCase().includes(q)
-      )
-    )
+    return q ? orgs.filter(o => o.name.toLowerCase().includes(q)) : orgs
   }, [orgs, filter])
 
-  // Handlers (replace with API calls later)
-  function createOrg() {
-    const name = createForm.name.trim()
+  // ---------- Create ----------
+  async function createOrg() {
+    const name = createName.trim()
     if (!name) return
-    const newOrg: Organization = {
-      id: `o-${Date.now()}`,
-      name,
-      createdAt: new Date().toISOString(),
-      admins: [],
-      usersCount: 0,
-      coursesCount: 0,
+    try {
+      const { data } = await api.post<ApiOrg>('/organizations', { name })
+      setOrgs(prev => [
+        { id: data.id, name: data.name, usersCount: data.usersCount, coursesCount: data.coursesCount },
+        ...prev
+      ])
+      setCreateName(''); setCreateOpen(false)
+      setSuccess('Organization created')
+    } catch (e) {
+      onAxiosError(e, 'Failed to create organization')
     }
-    setOrgs(prev => [newOrg, ...prev])
-    setCreateForm({ name: '' })
-    setCreateOpen(false)
-  }
-  function askDelete(org: Organization) { setToDelete(org); setConfirmOpen(true) }
-  function confirmDelete() {
-    if (!toDelete) return
-    setOrgs(prev => prev.filter(o => o.id !== toDelete.id))
-    if (viewId === toDelete.id) setViewId(null)
-    setConfirmOpen(false); setToDelete(null)
-  }
-  function addAdmin() {
-    if (!viewed) return
-    const fn = adminForm.firstName.trim(), ln = adminForm.lastName.trim(), em = adminForm.email.trim()
-    if (!fn || !ln || !em) return
-    const newAdmin: AdminUser = { id: `a-${Date.now()}`, firstName: fn, lastName: ln, email: em }
-    setOrgs(prev => prev.map(o => o.id === viewed.id ? { ...o, admins: [...o.admins, newAdmin] } : o))
-    setAdminForm({ firstName: '', lastName: '', email: '' }); setAddAdminOpen(false)
-  }
-  function removeAdmin(adminId: string) {
-    if (!viewed) return
-    setOrgs(prev => prev.map(o => o.id === viewed.id ? { ...o, admins: o.admins.filter(a => a.id !== adminId) } : o))
   }
 
-  // UI
+  // ---------- Edit ----------
+  function openEdit(o: Organization) {
+    setEditOrg(o); setEditName(o.name); setEditOpen(true)
+  }
+  async function saveEdit() {
+    if (!editOrg) return
+    const newName = editName.trim()
+    if (!newName || newName === editOrg.name) {
+      setEditOpen(false); return
+    }
+    try {
+      const { data } = await api.patch<ApiOrg>(`/organizations/${editOrg.id}`, { name: newName })
+      setOrgs(prev => prev.map(o => o.id === editOrg.id ? {
+        id: data.id, name: data.name, usersCount: data.usersCount, coursesCount: data.coursesCount
+      } : o))
+      setSuccess('Organization updated')
+      setEditOpen(false); setEditOrg(null)
+    } catch (e) {
+      onAxiosError(e, 'Failed to update organization')
+    }
+  }
+
+  // ---------- Delete ----------
+  async function confirmDelete() {
+    if (!toDelete) return
+    try {
+      await api.delete(`/organizations/${toDelete.id}`)
+      setOrgs(prev => prev.filter(o => o.id !== toDelete.id))
+      setSuccess('Organization deleted')
+    } catch (e) {
+      onAxiosError(e, 'Cannot delete organization (has users/courses?)')
+    } finally {
+      setConfirmOpen(false); setToDelete(null)
+    }
+  }
+
+  // ---------- Instructors ----------
+  async function openInstructors(org: Organization) {
+    setInstOrg(org)
+    setInstFilter('')
+    setEmail('')
+    setFirstName('')
+    setLastName('')
+    setInstructors([])
+    setInstOpen(true)
+    await loadInstructors(org.id)
+  }
+
+  /** Load DB users, then enrich with Cognito (name/email) */
+  async function loadInstructors(orgId: number) {
+    setInstLoading(true)
+    try {
+      const { data: dbUsers } = await api.get<DbInstructor[]>(`/organizations/${orgId}/instructors`)
+      const { data: cognitoInfos } = await api.get<any[]>(`/users/by-org/${orgId}`)
+      const bySub = new Map<string, any>()
+      for (const info of cognitoInfos) {
+        const subFromAttrs = info?.attributes?.sub
+        if (subFromAttrs) bySub.set(subFromAttrs, info)
+      }
+      const uiRows: UiInstructor[] = dbUsers.map(u => {
+        const info = u.cognito_sub ? bySub.get(u.cognito_sub) : null
+        return {
+          id: u.id,
+          sub: u.cognito_sub ?? null,
+          email: info?.attributes?.email ?? null,
+          firstName: info?.attributes?.given_name ?? null,
+          lastName: info?.attributes?.family_name ?? null,
+        }
+      })
+      setInstructors(uiRows)
+    } catch (e) {
+      onAxiosError(e, 'Failed to load instructors')
+    } finally {
+      setInstLoading(false)
+    }
+  }
+
+  // Create brand-new instructor (Email + First/Last name)
+  async function createInstructorInline() {
+    if (!instOrg) return
+    const cleanEmail = email.trim()
+    const cleanFirst = firstName.trim()
+    const cleanLast = lastName.trim()
+    if (!cleanEmail || !cleanFirst || !cleanLast) {
+      setError('Email, First name and Last name are required')
+      return
+    }
+    const payload: AdminCreateUserBody = {
+      email: cleanEmail,
+      firstName: cleanFirst,
+      lastName: cleanLast,
+      role: 'instructor',
+      organizationId: instOrg.id,
+    }
+
+    setCreatingInstructor(true)
+    try {
+      await api.post('/users/admin-create', payload)
+      await loadInstructors(instOrg.id)
+      setOrgs(prev => prev.map(o => o.id === instOrg.id ? ({ ...o, usersCount: o.usersCount + 1 }) : o))
+      setEmail(''); setFirstName(''); setLastName('')
+      setSuccess('Instructor created and attached to organization')
+    } catch (e) {
+      onAxiosError(e, 'Failed to create instructor')
+    } finally {
+      setCreatingInstructor(false)
+    }
+  }
+
+  // Delete user entirely (Cognito + DB) by sub
+  async function deleteInstructorEverywhere(sub: string | null) {
+    if (!instOrg || !sub) return
+    try {
+      await api.delete(`/users/${encodeURIComponent(sub)}`)
+      await loadInstructors(instOrg.id)
+      setOrgs(prev => prev.map(o => o.id === instOrg.id ? { ...o, usersCount: Math.max(0, o.usersCount - 1) } : o))
+      setSuccess(`Instructor deleted`)
+    } catch (e) {
+      onAxiosError(e, 'Failed to delete instructor')
+    }
+  }
+
+  const filteredInstructors = React.useMemo(() => {
+    const q = instFilter.trim().toLowerCase()
+    if (!q) return instructors
+    return instructors.filter(i =>
+      (i.firstName ?? '').toLowerCase().includes(q) ||
+      (i.lastName ?? '').toLowerCase().includes(q) ||
+      (i.email ?? '').toLowerCase().includes(q) ||
+      String(i.id).includes(q)
+    )
+  }, [instructors, instFilter])
+
   return (
     <Box>
       {/* Header */}
@@ -157,11 +286,12 @@ export default function OrganizationsPage() {
         <Stack direction="row" spacing={1.25} alignItems="center">
           <BusinessIcon color="primary" />
           <Typography variant="h5">Organizations</Typography>
+          {loading && <Chip size="small" label="Loading…" />}
         </Stack>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           <TextField
             size="small"
-            placeholder="Search organizations or admins…"
+            placeholder="Search organizations…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> }}
@@ -172,106 +302,90 @@ export default function OrganizationsPage() {
         </Stack>
       </Stack>
 
-      {/* Content */}
-      {upSm ? (
-        <TableContainer component={Paper}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Admins</TableCell>
-                <TableCell align="right">Users</TableCell>
-                <TableCell align="right">Courses</TableCell>
-                <TableCell align="right">Created</TableCell>
-                <TableCell align="right">Actions</TableCell>
+      {/* Table */}
+      <TableContainer component={Paper}>
+        <Table size={upSm ? 'small' : 'medium'}>
+          <TableHead>
+            <TableRow>
+              <TableCell>Name</TableCell>
+              <TableCell align="right">Users</TableCell>
+              <TableCell align="right">Courses</TableCell>
+              <TableCell align="right">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filtered.map((o) => (
+              <TableRow key={o.id} hover>
+                <TableCell sx={{ width: 280 }}>
+                  <Typography variant="subtitle2">{o.name}</Typography>
+                </TableCell>
+                <TableCell align="right">{o.usersCount}</TableCell>
+                <TableCell align="right">{o.coursesCount}</TableCell>
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                  <Tooltip title="Edit Organization">
+                    <IconButton onClick={() => openEdit(o)}>
+                      <EditIcon />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Manage Instructors">
+                    <IconButton onClick={() => openInstructors(o)}>
+                      <GroupIcon />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Delete Organization">
+                    <IconButton color="error" onClick={() => { setToDelete(o); setConfirmOpen(true) }}>
+                      <DeleteIcon />
+                    </IconButton>
+                  </Tooltip>
+                </TableCell>
               </TableRow>
-            </TableHead>
-            <TableBody>
-              {filtered.map((o) => (
-                <TableRow key={o.id} hover>
-                  <TableCell sx={{ width: 280 }}>
-                    <Typography variant="subtitle2">{o.name}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                      {o.admins.slice(0, 4).map(a => (
-                        <EmailChip key={a.id} email={a.email} />
-                      ))}
-                      {o.admins.length > 4 && <Chip size="small" label={`+${o.admins.length - 4}`} />}
-                    </Stack>
-                  </TableCell>
-                  <TableCell align="right">{o.usersCount}</TableCell>
-                  <TableCell align="right">{o.coursesCount}</TableCell>
-                  <TableCell align="right">{new Date(o.createdAt).toLocaleDateString()}</TableCell>
-                  <TableCell align="right">
-                    <Tooltip title="Manage Admins">
-                      <IconButton color="primary" onClick={() => setViewId(o.id)}>
-                        <AdminPanelSettingsIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete Organization">
-                      <IconButton color="error" onClick={() => askDelete(o)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6}>
-                    <Typography align="center" color="text.secondary">No organizations match your search.</Typography>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      ) : (
-        <Stack spacing={1.25}>
-          {filtered.map((o) => (
-            <Card key={o.id} variant="outlined" sx={{ borderRadius: 3, borderColor: alpha(theme.palette.primary.main, 0.18) }}>
-              <CardContent>
-                <Typography variant="subtitle1" sx={{ mb: .25 }}>{o.name}</Typography>
-                <Stack direction="row" spacing={1} sx={{ mb: 1 }} flexWrap="wrap" useFlexGap>
-                  <Chip size="small" label={`${o.usersCount} users`} />
-                  <Chip size="small" label={`${o.coursesCount} courses`} />
-                  <Chip size="small" label={`Created ${new Date(o.createdAt).toLocaleDateString()}`} />
-                </Stack>
-                <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                  {o.admins.slice(0, 3).map(a => <EmailChip key={a.id} email={a.email} />)}
-                  {o.admins.length > 3 && <Chip size="small" label={`+${o.admins.length - 3}`} />}
-                </Stack>
-              </CardContent>
-              <CardActions sx={{ justifyContent: 'flex-end' }}>
-                <Button size="small" startIcon={<AdminPanelSettingsIcon />} onClick={() => setViewId(o.id)}>Manage</Button>
-                <Button size="small" color="error" startIcon={<DeleteIcon />} onClick={() => askDelete(o)}>Delete</Button>
-              </CardActions>
-            </Card>
-          ))}
-          {filtered.length === 0 && (
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography align="center" color="text.secondary">No organizations match your search.</Typography>
-            </Paper>
-          )}
-        </Stack>
-      )}
+            ))}
+            {filtered.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4}>
+                  <Typography align="center" color="text.secondary">No organizations found.</Typography>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-      {/* Create organization dialog */}
+      {/* Create dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)}>
         <DialogTitle>New Organization</DialogTitle>
         <DialogContent sx={{ pt: 2, display: 'grid', gap: 2, minWidth: { xs: 320, sm: 420 } }}>
           <TextField
             autoFocus
             label="Organization name"
-            value={createForm.name}
-            onChange={(e) => setCreateForm({ name: e.target.value })}
+            value={createName}
+            onChange={(e) => setCreateName(e.target.value)}
             placeholder="e.g., Stark Industries"
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={createOrg} disabled={!createForm.name.trim()}>Create</Button>
+          <Button variant="contained" onClick={createOrg} disabled={!createName.trim()}>Create</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit dialog */}
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)}>
+        <DialogTitle>Edit organization</DialogTitle>
+        <DialogContent sx={{ pt: 2, display: 'grid', gap: 2, minWidth: { xs: 320, sm: 420 } }}>
+          <TextField
+            autoFocus
+            label="Organization name"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            placeholder="Organization name"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button startIcon={<CloseIcon />} onClick={() => setEditOpen(false)}>Cancel</Button>
+          <Button startIcon={<SaveIcon />} variant="contained" onClick={saveEdit} disabled={!editName.trim()}>
+            Save
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -287,80 +401,116 @@ export default function OrganizationsPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Drawer: manage admins */}
-      <Drawer anchor="right" open={!!viewId} onClose={() => setViewId(null)}>
-        <Box sx={{ width: { xs: 320, sm: 420 }, p: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
-          {!viewed ? (
-            <Typography>No organization selected.</Typography>
-          ) : (
-            <>
-              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-                <Typography variant="h6">{viewed.name}</Typography>
-                <IconButton onClick={() => setViewId(null)}><CloseIcon /></IconButton>
-              </Stack>
+      {/* Instructors dialog */}
+      <Dialog open={instOpen} onClose={() => setInstOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <GroupIcon />
+          Manage Instructors {instOrg ? `— ${instOrg.name}` : ''}
+        </DialogTitle>
+        <DialogContent dividers sx={{ display: 'grid', gap: 2 }}>
+          {/* Add Instructor (Email + First/Last) */}
+          <Typography variant="subtitle1">Add Instructor</Typography>
+          <Grid container spacing={1}>
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth
+                label="First name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth
+                label="Last name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={12} md={2} sx={{ display: 'flex', alignItems: 'stretch' }}>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={createInstructorInline}
+                disabled={creatingInstructor || !email.trim() || !firstName.trim() || !lastName.trim()}
+              >
+                {creatingInstructor ? 'Creating…' : 'Add'}
+              </Button>
+            </Grid>
+          </Grid>
 
-              <Stack direction="row" spacing={1} sx={{ mb: 1.5 }} flexWrap="wrap">
-                <Chip label={`${viewed.usersCount} users`} />
-                <Chip label={`${viewed.coursesCount} courses`} />
-                <Chip label={`Created ${new Date(viewed.createdAt).toLocaleDateString()}`} />
-              </Stack>
+          <Divider />
 
-              <Divider sx={{ my: 1.5 }} />
-
-              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-                <Typography variant="subtitle1">Admins</Typography>
-                <Button size="small" startIcon={<GroupAddIcon />} onClick={() => setAddAdminOpen(true)}>Add admin</Button>
-              </Stack>
-
-              <Paper variant="outlined" sx={{ p: 0, flex: 1, overflow: 'hidden', display: 'flex' }}>
-                <List sx={{ width: '100%', overflowY: 'auto' }}>
-                  {viewed.admins.length === 0 && (
-                    <ListItem><ListItemText primary="No admins yet." primaryTypographyProps={{ color: 'text.secondary' }} /></ListItem>
-                  )}
-                  {viewed.admins.map(a => (
-                    <ListItem key={a.id} divider>
-                      <ListItemText
-                        primary={`${a.firstName} ${a.lastName}`}
-                        secondary={a.email}
-                        secondaryTypographyProps={{ color: 'text.secondary' }} // also subtle here
-                      />
-                      <ListItemSecondaryAction>
-                        <Tooltip title="Remove admin">
-                          <IconButton edge="end" color="error" onClick={() => removeAdmin(a.id)}>
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                  ))}
-                </List>
-              </Paper>
-
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                SuperAdmin can only manage organizations and their admins. Inner data remains private to each organization.
-              </Typography>
-            </>
-          )}
-        </Box>
-      </Drawer>
-
-      {/* Add admin dialog */}
-      <Dialog open={addAdminOpen} onClose={() => setAddAdminOpen(false)}>
-        <DialogTitle>Add admin to {viewed?.name}</DialogTitle>
-        <DialogContent sx={{ pt: 2, display: 'grid', gap: 2, minWidth: { xs: 320, sm: 420 } }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <TextField label="First name" value={adminForm.firstName} onChange={e => setAdminForm({ ...adminForm, firstName: e.target.value })} fullWidth />
-            <TextField label="Last name" value={adminForm.lastName} onChange={e => setAdminForm({ ...adminForm, lastName: e.target.value })} fullWidth />
+          {/* Filter */}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+            <SearchIcon fontSize="small" />
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Filter by First name, Last name, Email, or ID…"
+              value={instFilter}
+              onChange={(e) => setInstFilter(e.target.value)}
+            />
+            {instLoading && <Chip size="small" label="Loading…" />}
           </Stack>
-          <TextField type="email" label="Work email" value={adminForm.email} onChange={e => setAdminForm({ ...adminForm, email: e.target.value })} fullWidth />
+
+          {/* List */}
+          <List dense sx={{ bgcolor: 'background.paper', borderRadius: 1, maxHeight: 420, overflow: 'auto' }}>
+            {filteredInstructors.map((i) => (
+              <ListItem
+                key={`${i.id}-${i.sub ?? ''}`}
+                secondaryAction={
+                  i.sub && (
+                    <Tooltip title="Delete instructor (Cognito + DB)">
+                      <IconButton edge="end" color="error" onClick={() => deleteInstructorEverywhere(i.sub!)}>
+                        <PersonOffIcon />
+                      </IconButton>
+                    </Tooltip>
+                  )
+                }
+              >
+                <ListItemText
+                  primary={`${i.firstName ?? ''} ${i.lastName ?? ''}`.trim() || i.email || `User #${i.id}`}
+                  secondary={[
+                    i.email ? `Email: ${i.email}` : null,
+                    `User ID: ${i.id}`,
+                  ].filter(Boolean).join(' · ')}
+                />
+              </ListItem>
+            ))}
+            {filteredInstructors.length === 0 && (
+              <Box sx={{ py: 3, textAlign: 'center', color: 'text.secondary' }}>
+                {instLoading ? 'Loading…' : 'No instructors found.'}
+              </Box>
+            )}
+          </List>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAddAdminOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={addAdmin} disabled={!adminForm.firstName.trim() || !adminForm.lastName.trim() || !adminForm.email.trim()}>
-            Add admin
-          </Button>
+          <Button onClick={() => setInstOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Alerts */}
+      <Snackbar open={!!error} autoHideDuration={5000} onClose={() => setError(null)}>
+        <Alert severity="error" onClose={() => setError(null)} sx={{ width: '100%' }}>
+          {error}
+        </Alert>
+      </Snackbar>
+
+      <Snackbar open={!!success} autoHideDuration={3500} onClose={() => setSuccess(null)}>
+        <Alert severity="success" onClose={() => setSuccess(null)} sx={{ width: '100%' }}>
+          {success}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }
