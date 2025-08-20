@@ -10,6 +10,7 @@ import { useAppDispatch, useAppSelector } from '@/store'
 import { addCourse, injectGeneratedFinalExam, injectGeneratedModule } from '@/store/coursesSlice'
 import type { ContentBlock } from '@/types/course'
 
+import Grid from '@mui/material/Grid';
 export default function CreateCoursePage() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
