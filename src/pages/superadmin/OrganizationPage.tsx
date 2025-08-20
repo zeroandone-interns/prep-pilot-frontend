@@ -1,5 +1,5 @@
 // src/pages/superadmin/OrganizationsPage.tsx
-// Requires: VITE_API_URL in your frontend .env (e.g., VITE_API_URL=http://localhost:3000)
+// Requires VITE_API_URL in your frontend .env (e.g., VITE_API_URL=http://localhost:3000)
 
 import * as React from 'react'
 import {
@@ -24,13 +24,24 @@ import PersonOffIcon from '@mui/icons-material/PersonOff'
 import axios, { AxiosError, AxiosHeaders } from 'axios'
 import type { InternalAxiosRequestConfig } from 'axios'
 
+/** Backend payloads */
 type ApiOrg = { id: number; name: string; usersCount: number; coursesCount: number }
 type Organization = { id: number; name: string; usersCount: number; coursesCount: number }
 
-// Match your backend select in OrganizationsService (id, cognito_sub, organization_id)
-type Instructor = { id: number; cognito_sub: string | null; organization_id: number | null }
+/** From OrganizationsService.listInstructors (DB) */
+type DbInstructor = { id: number; cognito_sub: string | null; organization_id: number | null }
 
-// AdminCreateUserDto (backend)
+/** Enriched instructor row for UI (DB + Cognito) */
+type UiInstructor = {
+  id: number                 // DB user id (needed for remove-by-id)
+  sub: string | null         // Cognito sub (needed for delete everywhere)
+  username?: string | null   // from Cognito (Username)
+  email?: string | null      // from Cognito attributes.email
+  firstName?: string | null  // from Cognito attributes.given_name
+  lastName?: string | null   // from Cognito attributes.family_name
+}
+
+/** Matches AdminCreateUserDto (backend) */
 type AdminCreateUserBody = {
   email: string
   firstName: string
@@ -43,9 +54,9 @@ const api = axios.create({
   baseURL: (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000',
 })
 
-// Safe interceptor: don’t replace `headers`, set on it.
+/** Attach Authorization header if localStorage.jwt exists */
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('jwt') // optional
+  const token = localStorage.getItem('jwt')
   if (token) {
     const h = config.headers
     if (h && typeof (h as AxiosHeaders).set === 'function') {
@@ -83,20 +94,18 @@ export default function OrganizationsPage() {
   // Instructors dialog
   const [instOpen, setInstOpen] = React.useState(false)
   const [instOrg, setInstOrg] = React.useState<Organization | null>(null)
-  const [instructors, setInstructors] = React.useState<Instructor[]>([])
+  const [instructors, setInstructors] = React.useState<UiInstructor[]>([])
   const [instLoading, setInstLoading] = React.useState(false)
-  const [instUserId, setInstUserId] = React.useState<string>('') // as text input, parse to int
   const [instFilter, setInstFilter] = React.useState('')
+  const [existingUserId, setExistingUserId] = React.useState<string>('') // path A: attach existing user by ID
 
-  // Admin-create user dialog (creates user in Cognito and DB, attached to this org)
+  // Inline "Create Instructor" (email + username only)
+  const [email, setEmail] = React.useState('')
+  const [username, setUsername] = React.useState('')
+  const [creatingInstructor, setCreatingInstructor] = React.useState(false)
+
+  // Separate admin-create dialog (optional, still available)
   const [adminCreateOpen, setAdminCreateOpen] = React.useState(false)
-  const [adminForm, setAdminForm] = React.useState<AdminCreateUserBody>({
-    email: '',
-    firstName: '',
-    lastName: '',
-    role: 'instructor',
-    organizationId: 0, // filled when opening dialog for a specific org
-  })
   const [adminSubmitting, setAdminSubmitting] = React.useState(false)
 
   const onAxiosError = (e: unknown, fallback: string) => {
@@ -146,16 +155,13 @@ export default function OrganizationsPage() {
 
   // ---------- Edit ----------
   function openEdit(o: Organization) {
-    setEditOrg(o)
-    setEditName(o.name)
-    setEditOpen(true)
+    setEditOrg(o); setEditName(o.name); setEditOpen(true)
   }
   async function saveEdit() {
     if (!editOrg) return
     const newName = editName.trim()
     if (!newName || newName === editOrg.name) {
-      setEditOpen(false)
-      return
+      setEditOpen(false); return
     }
     try {
       const { data } = await api.patch<ApiOrg>(`/organizations/${editOrg.id}`, { name: newName })
@@ -163,8 +169,7 @@ export default function OrganizationsPage() {
         id: data.id, name: data.name, usersCount: data.usersCount, coursesCount: data.coursesCount
       } : o))
       setSuccess('Organization updated')
-      setEditOpen(false)
-      setEditOrg(null)
+      setEditOpen(false); setEditOrg(null)
     } catch (e) {
       onAxiosError(e, 'Failed to update organization')
     }
@@ -188,17 +193,48 @@ export default function OrganizationsPage() {
   async function openInstructors(org: Organization) {
     setInstOrg(org)
     setInstFilter('')
-    setInstUserId('')
+    setExistingUserId('')
+    setEmail('')
+    setUsername('')
     setInstructors([])
     setInstOpen(true)
     await loadInstructors(org.id)
   }
 
+  /**
+   * Loads instructors with DB IDs and enriches them with Cognito info
+   * so we can show username/email while still knowing DB userId.
+   */
   async function loadInstructors(orgId: number) {
     setInstLoading(true)
     try {
-      const { data } = await api.get<Instructor[]>(`/organizations/${orgId}/instructors`)
-      setInstructors(data)
+      // 1) DB side: get user IDs + subs
+      const { data: dbUsers } = await api.get<DbInstructor[]>(`/organizations/${orgId}/instructors`)
+      // 2) Cognito info (email/username/first/last) for this org
+      const { data: cognitoInfos } = await api.get<any[]>(`/users/by-org/${orgId}`)
+
+      // Build lookup by sub from Cognito
+      // cognitoInfos[i] shape (from your service): { username, attributes: { email, given_name, family_name, sub }, ... }
+      const bySub = new Map<string, any>()
+      for (const info of cognitoInfos) {
+        const subFromAttrs = info?.attributes?.sub
+        if (subFromAttrs) bySub.set(subFromAttrs, info)
+      }
+
+      // Join
+      const uiRows: UiInstructor[] = dbUsers.map(u => {
+        const info = u.cognito_sub ? bySub.get(u.cognito_sub) : null
+        return {
+          id: u.id,
+          sub: u.cognito_sub,
+          username: info?.username ?? null,
+          email: info?.attributes?.email ?? null,
+          firstName: info?.attributes?.given_name ?? null,
+          lastName: info?.attributes?.family_name ?? null,
+        }
+      })
+
+      setInstructors(uiRows)
     } catch (e) {
       onAxiosError(e, 'Failed to load instructors')
     } finally {
@@ -206,22 +242,56 @@ export default function OrganizationsPage() {
     }
   }
 
-  async function addInstructor() {
+  // Path A: attach existing user by numeric id → assign to org
+  async function attachExistingUser() {
     if (!instOrg) return
-    const idNum = parseInt(instUserId, 10)
+    const idNum = parseInt(existingUserId, 10)
     if (!idNum || Number.isNaN(idNum)) {
       setError('Please enter a valid numeric user ID')
       return
     }
     try {
       await api.post(`/organizations/${instOrg.id}/instructors`, { userId: idNum })
-      setInstUserId('')
+      setExistingUserId('')
       await loadInstructors(instOrg.id)
-      // also bump the usersCount in the table for this org
       setOrgs(prev => prev.map(o => o.id === instOrg.id ? { ...o, usersCount: o.usersCount + 1 } : o))
-      setSuccess(`User #${idNum} added to ${instOrg.name}`)
+      setSuccess(`User #${idNum} attached to ${instOrg.name}`)
     } catch (e) {
-      onAxiosError(e, 'Failed to add instructor')
+      onAxiosError(e, 'Failed to attach user')
+    }
+  }
+
+  // Path B: create brand-new instructor with only email + username (we auto-map to AdminCreateUserDto)
+  async function createInstructorInline() {
+    if (!instOrg) return
+    const cleanEmail = email.trim()
+    const cleanUsername = username.trim()
+    if (!cleanEmail || !cleanUsername) {
+      setError('Email and Username are required')
+      return
+    }
+    // Map to AdminCreateUserDto:
+    const payload: AdminCreateUserBody = {
+      email: cleanEmail,
+      firstName: cleanUsername,
+      lastName: cleanUsername,        // backend requires lastName; mirror username
+      role: 'instructor',
+      organizationId: instOrg.id,
+    }
+
+    setCreatingInstructor(true)
+    try {
+      const { data } = await api.post('/users/admin-create', payload)
+      // (data.tempPassword, data.cognitoSub available if you want to show)
+      await loadInstructors(instOrg.id)
+      setOrgs(prev => prev.map(o => o.id === instOrg.id ? ({ ...o, usersCount: o.usersCount + 1 }) : o))
+      setEmail('')
+      setUsername('')
+      setSuccess('Instructor created and attached to organization')
+    } catch (e) {
+      onAxiosError(e, 'Failed to create instructor')
+    } finally {
+      setCreatingInstructor(false)
     }
   }
 
@@ -230,7 +300,6 @@ export default function OrganizationsPage() {
     try {
       await api.delete(`/organizations/${instOrg.id}/instructors/${userId}`)
       await loadInstructors(instOrg.id)
-      // decrement usersCount in the table
       setOrgs(prev => prev.map(o => o.id === instOrg.id ? { ...o, usersCount: Math.max(0, o.usersCount - 1) } : o))
       setSuccess(`User #${userId} removed from ${instOrg.name}`)
     } catch (e) {
@@ -238,14 +307,14 @@ export default function OrganizationsPage() {
     }
   }
 
-  // Delete instructor entirely (Cognito + DB) using /users/:sub
-  async function deleteInstructorEverywhere(cognitoSub: string) {
-    if (!instOrg) return
+  // Delete user entirely (Cognito + DB) by sub
+  async function deleteInstructorEverywhere(sub: string | null) {
+    if (!instOrg || !sub) return
     try {
-      await api.delete(`/users/${encodeURIComponent(cognitoSub)}`)
+      await api.delete(`/users/${encodeURIComponent(sub)}`)
       await loadInstructors(instOrg.id)
       setOrgs(prev => prev.map(o => o.id === instOrg.id ? { ...o, usersCount: Math.max(0, o.usersCount - 1) } : o))
-      setSuccess(`User with sub ${cognitoSub} deleted from Cognito & DB`)
+      setSuccess(`User deleted from Cognito & DB`)
     } catch (e) {
       onAxiosError(e, 'Failed to delete user from Cognito/DB')
     }
@@ -254,43 +323,45 @@ export default function OrganizationsPage() {
   const filteredInstructors = React.useMemo(() => {
     const q = instFilter.trim().toLowerCase()
     if (!q) return instructors
-    // filter by id or cognito_sub string
     return instructors.filter(i =>
       String(i.id).includes(q) ||
-      (i.cognito_sub ?? '').toLowerCase().includes(q)
+      (i.username ?? '').toLowerCase().includes(q) ||
+      (i.email ?? '').toLowerCase().includes(q)
     )
   }, [instructors, instFilter])
 
-  // ----- Admin-create user -----
+  // Optional: separate admin-create dialog from table row
   function openAdminCreateForOrg(org: Organization) {
-    setAdminForm({
-      email: '',
-      firstName: '',
-      lastName: '',
-      role: 'instructor',
-      organizationId: org.id,
-    })
     setAdminCreateOpen(true)
+    // prefill with current instOrg if any, otherwise org clicked
+    setInstOrg(org)
+    setEmail('')
+    setUsername('')
   }
 
-  async function submitAdminCreate() {
-    if (!adminForm.email || !adminForm.firstName || !adminForm.lastName || !adminForm.role || !adminForm.organizationId) {
-      setError('All fields are required')
+  async function submitAdminCreateDialog() {
+    if (!instOrg) return
+    const cleanEmail = email.trim()
+    const cleanUsername = username.trim()
+    if (!cleanEmail || !cleanUsername) {
+      setError('Email and Username are required')
       return
+    }
+    const payload: AdminCreateUserBody = {
+      email: cleanEmail,
+      firstName: cleanUsername,
+      lastName: cleanUsername,
+      role: 'instructor',
+      organizationId: instOrg.id,
     }
     setAdminSubmitting(true)
     try {
-      await api.post('/users/admin-create', adminForm as AdminCreateUserBody)
+      await api.post('/users/admin-create', payload)
       setAdminSubmitting(false)
       setAdminCreateOpen(false)
       setSuccess('User created and attached to organization')
-      if (instOrg && instOrg.id === adminForm.organizationId) {
-        await loadInstructors(instOrg.id)
-        setOrgs(prev => prev.map(o => o.id === instOrg.id ? { ...o, usersCount: o.usersCount + 1 } : o))
-      } else {
-        // reload org list to refresh counts
-        await load()
-      }
+      await loadInstructors(instOrg.id)
+      setOrgs(prev => prev.map(o => o.id === instOrg.id ? { ...o, usersCount: o.usersCount + 1 } : o))
     } catch (e) {
       setAdminSubmitting(false)
       onAxiosError(e, 'Failed to create user')
@@ -350,7 +421,7 @@ export default function OrganizationsPage() {
                       <GroupIcon />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Create & Attach User">
+                  <Tooltip title="Quick Create Instructor">
                     <IconButton color="primary" onClick={() => openAdminCreateForOrg(o)}>
                       <PersonOutlineIcon />
                     </IconButton>
@@ -425,24 +496,52 @@ export default function OrganizationsPage() {
       </Dialog>
 
       {/* Instructors dialog */}
-      <Dialog open={instOpen} onClose={() => setInstOpen(false)} fullWidth maxWidth="sm">
+      <Dialog open={instOpen} onClose={() => setInstOpen(false)} fullWidth maxWidth="md">
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <GroupIcon />
           Manage Instructors {instOrg ? `— ${instOrg.name}` : ''}
         </DialogTitle>
         <DialogContent dividers sx={{ display: 'grid', gap: 2 }}>
+          {/* Path A: attach existing user by ID */}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             <TextField
               fullWidth
               size="small"
               type="number"
-              label="User ID to add"
-              value={instUserId}
-              onChange={(e) => setInstUserId(e.target.value)}
+              label="Attach existing user by ID"
+              value={existingUserId}
+              onChange={(e) => setExistingUserId(e.target.value)}
               InputProps={{ startAdornment: <PersonAddIcon fontSize="small" sx={{ mr: 1 }} /> as any }}
             />
-            <Button variant="contained" startIcon={<PersonAddIcon />} onClick={addInstructor} disabled={!instUserId.trim()}>
-              Add
+            <Button variant="contained" startIcon={<PersonAddIcon />} onClick={attachExistingUser} disabled={!existingUserId.trim()}>
+              Attach
+            </Button>
+          </Stack>
+
+          <Divider textAlign="left">or Create a New Instructor</Divider>
+
+          {/* Path B: create brand-new instructor (Email + Username only) */}
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
+            <TextField
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              fullWidth
+              helperText="We’ll auto-fill first/last name with Username and create an instructor."
+            />
+            <Button
+              variant="contained"
+              onClick={createInstructorInline}
+              disabled={creatingInstructor || !email.trim() || !username.trim()}
+            >
+              {creatingInstructor ? 'Creating…' : 'Create Instructor'}
             </Button>
           </Stack>
 
@@ -453,29 +552,29 @@ export default function OrganizationsPage() {
             <TextField
               fullWidth
               size="small"
-              placeholder="Filter by ID or Cognito Sub…"
+              placeholder="Filter by ID, Username, or Email…"
               value={instFilter}
               onChange={(e) => setInstFilter(e.target.value)}
             />
             {instLoading && <Chip size="small" label="Loading…" />}
           </Stack>
 
-          <List dense sx={{ bgcolor: 'background.paper', borderRadius: 1, maxHeight: 360, overflow: 'auto' }}>
+          <List dense sx={{ bgcolor: 'background.paper', borderRadius: 1, maxHeight: 420, overflow: 'auto' }}>
             {filteredInstructors.map((i) => (
               <ListItem
-                key={i.id}
+                key={`${i.id}-${i.sub ?? ''}`}
                 secondaryAction={
                   <Stack direction="row" spacing={0.5}>
-                    {/* Remove from org */}
+                    {/* Remove from org (by DB user id) */}
                     <Tooltip title="Remove from organization">
                       <IconButton edge="end" color="error" onClick={() => removeInstructor(i.id)}>
                         <PersonRemoveIcon />
                       </IconButton>
                     </Tooltip>
                     {/* Delete user everywhere (Cognito + DB) */}
-                    {i.cognito_sub && (
+                    {i.sub && (
                       <Tooltip title="Delete user (Cognito + DB)">
-                        <IconButton edge="end" onClick={() => deleteInstructorEverywhere(i.cognito_sub!)}>
+                        <IconButton edge="end" onClick={() => deleteInstructorEverywhere(i.sub!)}>
                           <PersonOffIcon />
                         </IconButton>
                       </Tooltip>
@@ -484,8 +583,13 @@ export default function OrganizationsPage() {
                 }
               >
                 <ListItemText
-                  primary={`User #${i.id}`}
-                  secondary={i.cognito_sub ? `cognito_sub: ${i.cognito_sub}` : 'cognito_sub: —'}
+                  primary={i.username || i.email || `User #${i.id}`}
+                  secondary={[
+                    i.email ? `Email: ${i.email}` : null,
+                    i.username ? `Username: ${i.username}` : null,
+                    `User ID: ${i.id}`,
+                    i.sub ? `Sub: ${i.sub}` : null,
+                  ].filter(Boolean).join(' · ')}
                 />
               </ListItem>
             ))}
@@ -501,66 +605,34 @@ export default function OrganizationsPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Admin-create user dialog */}
+      {/* Quick Admin-create dialog (optional shortcut from table) */}
       <Dialog open={adminCreateOpen} onClose={() => setAdminCreateOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <PersonOutlineIcon />
-          Create & Attach User {adminForm.organizationId ? `— Org #${adminForm.organizationId}` : ''}
+          Quick Create Instructor {instOrg ? `— Org #${instOrg.id}` : ''}
         </DialogTitle>
         <DialogContent dividers sx={{ display: 'grid', gap: 2 }}>
           <TextField
             label="Email"
             type="email"
-            value={adminForm.email}
-            onChange={(e) => setAdminForm(v => ({ ...v, email: e.target.value }))}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             fullWidth
           />
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <TextField
-              label="First name"
-              value={adminForm.firstName}
-              onChange={(e) => setAdminForm(v => ({ ...v, firstName: e.target.value }))}
-              fullWidth
-            />
-            <TextField
-              label="Last name"
-              value={adminForm.lastName}
-              onChange={(e) => setAdminForm(v => ({ ...v, lastName: e.target.value }))}
-              fullWidth
-            />
-          </Stack>
           <TextField
-            select
-            label="Role"
-            value={adminForm.role}
-            onChange={(e) => setAdminForm(v => ({ ...v, role: e.target.value as 'instructor' | 'learner' }))}
+            label="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             fullWidth
-          >
-            <MenuItem value="instructor">instructor</MenuItem>
-            <MenuItem value="learner">learner</MenuItem>
-          </TextField>
-          <TextField
-            label="Organization ID"
-            value={adminForm.organizationId}
-            onChange={(e) => setAdminForm(v => ({ ...v, organizationId: Number(e.target.value) || 0 }))}
-            type="number"
-            fullWidth
-            helperText="Pre-filled based on the selected organization; you can change it if needed."
+            helperText="We’ll auto-fill first/last name with this Username."
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAdminCreateOpen(false)}>Cancel</Button>
           <Button
             variant="contained"
-            onClick={submitAdminCreate}
-            disabled={
-              adminSubmitting ||
-              !adminForm.email ||
-              !adminForm.firstName ||
-              !adminForm.lastName ||
-              !adminForm.role ||
-              !adminForm.organizationId
-            }
+            onClick={submitAdminCreateDialog}
+            disabled={adminSubmitting || !email.trim() || !username.trim()}
           >
             {adminSubmitting ? 'Creating…' : 'Create'}
           </Button>
