@@ -33,9 +33,10 @@ const router = createBrowserRouter([
       { path: '/admin/courses', element: <AdminCourses /> },
       { path: '/admin/courses/new', element: <CreateCoursePage /> },
       { path: '/courses/:id/modules/:moduleId/sections/:sectionId', element: <SectionPage /> },
-      {path:'organizations', element:
-  <OrganizationPage />
-       },
+      {
+        path: 'organizations', element:
+          <OrganizationPage />
+      },
     ],
   },
 ])

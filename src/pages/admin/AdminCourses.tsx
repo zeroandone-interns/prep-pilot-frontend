@@ -1,199 +1,109 @@
-import * as React from 'react'
 import {
-  Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  IconButton, Chip, Stack, Typography, Tooltip, Card, CardContent, CardActions, useMediaQuery
-} from '@mui/material'
-import DeleteIcon from '@mui/icons-material/Delete'
-import AddIcon from '@mui/icons-material/Add'
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
-import { useNavigate } from 'react-router-dom'
-import { useTheme } from '@mui/material/styles'
+  Box,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  IconButton,
+  Typography,
+  Tooltip,
+} from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
 
-import { useAppDispatch, useAppSelector } from '@/store'
-import { addCourse, deleteCourse, injectGeneratedFinalExam, injectGeneratedModule } from '@/store/coursesSlice'
+import { useEffect, useState } from "react";
+import axios from "axios";
 
 export default function AdminCourses() {
-  const navigate = useNavigate()
-  const dispatch = useAppDispatch()
-  const courses = useAppSelector((s) => s.courses.items)
-  const theme = useTheme()
-  const upSm = useMediaQuery(theme.breakpoints.up('sm'))
+  const BaseUrl = import.meta.env.VITE_API_BASE_URL;
+  const [courses, setCourses] = useState([
+    {
+      id: 0,
+      title: "",
+      description: "",
+      level: "",
+      duration: "",
+      nb_of_modules: 0,
+      nb_of_sections: 0,
+    },
+  ]);
 
-  const [open, setOpen] = React.useState(false)
-  const [form, setForm] = React.useState({ title: '', difficulty: 'Beginner', services: '' })
+  const sub = localStorage.getItem("sub");
 
-  const handleSave = () => {
-    const services = form.services.split(',').map((s) => s.trim()).filter(Boolean)
-    dispatch(addCourse({ title: form.title.trim(), difficulty: form.difficulty.trim(), awsServices: services }))
-    setForm({ title: '', difficulty: 'Beginner', services: '' })
-    setOpen(false)
-  }
+      const fetchCourses = async () => {
+        if (!sub) {
+          alert("User not found in localStorage.");
+          return;
+        }
 
-  const simulateGenerate = (courseId: string, courseTitle: string) => {
-    dispatch(injectGeneratedModule({
-      courseId,
-      module: {
-        id: `m-${Date.now()}`,
-        title: `${courseTitle} — Module 1`,
-        sections: [
-          {
-            id: `s-${Date.now()}`,
-            title: 'Section 1: Overview',
-            blocks: [
-              { kind: 'paragraph' as const, text: 'This section was generated from uploaded documents, links, and videos.' },
-              { kind: 'paragraph' as const, text: 'It introduces the topic and outlines key learning outcomes.' },
-              {
-                kind: 'media' as const,
-                media: { type: 'image' as const, url: 'https://via.placeholder.com/800x420?text=Generated+Section', caption: 'Auto-generated visual' },
-              },
-            ],
-            quiz: [
-              {
-                id: 'gq1',
-                prompt: 'What is the source of this section?',
-                options: [
-                  { id: 'a', text: 'Uploaded resources (docs/links/videos)' },
-                  { id: 'b', text: 'Random generator' },
-                  { id: 'c', text: 'User chat only' },
-                ],
-                correctOptionId: 'a',
-              },
-              {
-                id: 'gq2',
-                prompt: 'How many questions are in each section quiz by design?',
-                options: [ { id: 'a', text: '1' }, { id: 'b', text: '3' }, { id: 'c', text: '10' } ],
-                correctOptionId: 'b',
-              },
-              {
-                id: 'gq3',
-                prompt: 'Sections can include which content types?',
-                options: [ { id: 'a', text: 'Paragraphs and media' }, { id: 'b', text: 'Only code' }, { id: 'c', text: 'Neither' } ],
-                correctOptionId: 'a',
-              },
-            ],
+        try {
+          const userRes = await axios.get(`${BaseUrl}/users/by-sub-db/${sub}`);
+          const user = userRes.data;
+          console.log(user);
+          const { id: userId, organization_id: organizationId } = user;
+
+          if (!userId || !organizationId) {
+            throw new Error("Missing userId or organizationId from backend.");
           }
-        ],
-      },
-    }))
 
-    dispatch(injectGeneratedFinalExam({
-      courseId,
-      questions: [
-        {
-          id: 'fe1',
-          prompt: 'Final exam question example (MCQ).',
-          options: [ { id: 'a', text: 'Correct' }, { id: 'b', text: 'Wrong' }, { id: 'c', text: 'Wrong' } ],
-          correctOptionId: 'a',
-        },
-        {
-          id: 'fe2',
-          prompt: 'Progress should be saved to…',
-          options: [ { id: 'a', text: 'Backend' }, { id: 'b', text: 'Local storage only' }, { id: 'c', text: 'Nowhere' } ],
-          correctOptionId: 'a',
-        },
-        {
-          id: 'fe3',
-          prompt: 'Final exams are composed of…',
-          options: [ { id: 'a', text: 'MCQs' }, { id: 'b', text: 'Essays only' }, { id: 'c', text: 'True/False only' } ],
-          correctOptionId: 'a',
-        },
-      ],
-    }))
-  }
+          const coursesResult = await axios.get(
+            `${BaseUrl}/courses/organization/${organizationId}`
+          );
+          console.log(coursesResult);
+          setCourses(coursesResult.data);
+        } catch (err) {
+          console.error(err);
+        }
+      };
+
+
+  useEffect(() => {
+
+    fetchCourses();
+  }, []);
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h5">Courses</Typography>
-        <Button startIcon={<AddIcon />} variant="contained" onClick={() => navigate('/admin/courses/new')}>
-          Create Course
-        </Button>
-      </Box>
+    <Box className="admin-courses">
+      <Typography variant="h5" sx={{ mb: 2 }}>
+        Courses
+      </Typography>
 
-      {upSm ? (
-        <TableContainer component={Paper}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Title</TableCell>
-                <TableCell>Difficulty</TableCell>
-                <TableCell>Services</TableCell>
-                <TableCell>Modules</TableCell>
-                <TableCell>Final Exam</TableCell>
-                <TableCell align="right">Actions</TableCell>
+      <TableContainer component={Paper}>
+        <Table size="small" className="courses-table">
+          <TableHead>
+            <TableRow>
+              <TableCell>Title</TableCell>
+              <TableCell>Description</TableCell>
+              <TableCell>Level</TableCell>
+              <TableCell>Duration</TableCell>
+              <TableCell>Number Of Modules</TableCell>
+              <TableCell>Number Of Sections</TableCell>
+              <TableCell align="right">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {courses.map((c) => (
+              <TableRow key={c.id} hover>
+                <TableCell>{c.title}</TableCell>
+                <TableCell>{c.description}</TableCell>
+                <TableCell>{c.level}</TableCell>
+                <TableCell>{c.duration}</TableCell>
+                <TableCell>{c.nb_of_modules}</TableCell>
+                <TableCell>{c.nb_of_sections}</TableCell>
+                <TableCell align="right">
+                  <Tooltip title="Delete Course">
+                    <IconButton color="error">
+                      <DeleteIcon />
+                    </IconButton>
+                  </Tooltip>
+                </TableCell>
               </TableRow>
-            </TableHead>
-            <TableBody>
-              {courses.map((c) => (
-                <TableRow key={c.id} hover>
-                  <TableCell>{c.title}</TableCell>
-                  <TableCell><Chip size="small" label={c.difficulty || 'N/A'} /></TableCell>
-                  <TableCell>
-                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                      {(c.awsServices?.slice(0, 5) || []).map((s) => <Chip key={s} size="small" label={s} />)}
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <Chip size="small" color={c.modules?.length ? 'secondary' : 'default'} label={`${c.modules?.length ?? 0}`} />
-                  </TableCell>
-                  <TableCell>
-                    <Chip size="small" color={c.finalExam ? 'secondary' : 'default'} label={c.finalExam ? 'Yes' : 'No'} />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Tooltip title="Simulate Generate Course (Module + Final)">
-                      <IconButton color="primary" onClick={() => simulateGenerate(c.id, c.title)}>
-                        <AutoAwesomeIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete Course">
-                      <IconButton color="error" onClick={() => dispatch(deleteCourse(c.id))}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      ) : (
-        <Stack spacing={1.5}>
-          {courses.map((c) => (
-            <Card key={c.id} variant="outlined">
-              <CardContent>
-                <Typography variant="subtitle1" sx={{ mb: 0.5 }}>{c.title}</Typography>
-                <Stack direction="row" spacing={1} sx={{ mb: 1 }} flexWrap="wrap">
-                  <Chip size="small" label={c.difficulty || 'N/A'} />
-                  <Chip size="small" label={`${c.modules?.length ?? 0} module(s)`} color={c.modules?.length ? 'secondary' : 'default'} />
-                  <Chip size="small" label={c.finalExam ? 'Final Exam: Yes' : 'Final Exam: No'} color={c.finalExam ? 'secondary' : 'default'} />
-                </Stack>
-                <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                  {(c.awsServices || []).slice(0, 6).map(s => <Chip key={s} size="small" label={s}/>)}
-                </Stack>
-              </CardContent>
-              <CardActions sx={{ justifyContent: 'flex-end' }}>
-                <Button size="small" onClick={() => simulateGenerate(c.id, c.title)} startIcon={<AutoAwesomeIcon/>}>Generate</Button>
-                <Button size="small" color="error" onClick={() => dispatch(deleteCourse(c.id))} startIcon={<DeleteIcon/>}>Delete</Button>
-              </CardActions>
-            </Card>
-          ))}
-        </Stack>
-      )}
-
-      {/* Optional legacy dialog */}
-      <Dialog open={open} onClose={() => setOpen(false)}>
-        <DialogTitle>Create Course</DialogTitle>
-        <DialogContent sx={{ pt: 2, display: 'grid', gap: 2, minWidth: { xs: 320, sm: 420 } }}>
-          <TextField label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus />
-          <TextField label="Difficulty" value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })} placeholder="Beginner / Intermediate / Advanced" />
-          <TextField label="AWS Services (comma-separated)" value={form.services} onChange={(e) => setForm({ ...form, services: e.target.value })} placeholder="Lambda, API Gateway, DynamoDB" />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleSave} disabled={!form.title.trim()}>Save</Button>
-        </DialogActions>
-      </Dialog>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Box>
-  )
+  );
 }
