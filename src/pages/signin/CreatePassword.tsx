@@ -1,77 +1,152 @@
-// src/pages/CreatePassword.tsx
-import { useState } from "react";
-import { useNavigate} from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-    Button,
-    TextField,
-    Typography,
-    Card,
-    CardContent,
-    CardHeader,
-    Box,
+  Button,
+  TextField,
+  Typography,
+  Card,
+  CardContent,
+  CardHeader,
+  Box,
 } from "@mui/material";
-
 import "./Signup.css";
+import axios from "axios";
+import { useSelector } from "react-redux";
+import type { RootState } from "@/store";
 
 export default function CreatePassword() {
-    const [password, setPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-    const navigate = useNavigate();
+  const BaseUrl = import.meta.env.VITE_API_BASE_URL;
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [confirmError, setConfirmError] = useState("");
+  const navigate = useNavigate();
+  const session = useSelector((state: RootState) => state.Auth.session);
+  const email = useSelector((state: RootState) => state.Auth.email);
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (password !== confirmPassword) {
-            alert("Passwords do not match");
-            return;
+  useEffect(() => {
+    if (!session || !email) {
+      navigate("/");
+    }
+  }, [session, email, navigate]);
+
+  // Cognito password rules
+  const validatePassword = (pwd: string) => {
+    if (pwd.length < 8) {
+      return "Password must be at least 8 characters long";
+    }
+    if (!/[A-Z]/.test(pwd)) {
+      return "Password must contain at least one uppercase letter";
+    }
+    if (!/[a-z]/.test(pwd)) {
+      return "Password must contain at least one lowercase letter";
+    }
+    if (!/[0-9]/.test(pwd)) {
+      return "Password must contain at least one number";
+    }
+    if (!/[!@#$%^&*(),.?\":{}|<>]/.test(pwd)) {
+      return "Password must contain at least one special character";
+    }
+    return "";
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const pwdError = validatePassword(password);
+    if (pwdError) {
+      setPasswordError(pwdError);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setConfirmError("Passwords do not match");
+      return;
+    }
+
+    setPasswordError("");
+    setConfirmError("");
+    handleSetPassword();
+  };
+
+  const handleSetPassword = async () => {
+    try {
+        console.log("calling the handleSubmit")
+      const response = await axios.post(
+        `${BaseUrl}/users/complete-new-password`,
+        {
+          email,
+          session,
+          newPassword: password,
         }
-        // TODO: Call your password creation API here
+      );
 
-        // On success, navigate to login page
+      console.log(response)
+
+      if (response.data.message === "Password updated & login successful") {
         navigate("/");
-    };
+      }
+    } catch (error: any) {
+      if (axios.isAxiosError(error)) {
+        alert(error.response?.data?.message || "Something went wrong");
+      } else {
+        console.error(error);
+      }
+    }
+  };
 
-    return (
-        <Box className="signup-page" sx={{ bgcolor: "background.default", color: "text.primary" }}>
-                <Card>
-                    <CardHeader
-                        title={<Typography variant="h5" color="primary">Create Password</Typography>}
-                    />
-                    <CardContent>
-                        <form onSubmit={handleSubmit}>
-                            <TextField
-                                label="Create Password"
-                                type="password"
-                                required
-                                fullWidth
-                                variant="outlined"
-                                margin="normal"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                autoComplete="new-password"
-                            />
-                            <TextField
-                                label="Confirm Password"
-                                type="password"
-                                required
-                                fullWidth
-                                variant="outlined"
-                                margin="normal"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                autoComplete="new-password"
-                            />
-                            <Button
-                                type="submit"
-                                variant="contained"
-                                color="primary"
-                                fullWidth
-                                sx={{ mt: 2 }}
-                            >
-                                Save Password
-                            </Button>
-                        </form>
-                    </CardContent>
-                </Card>
-            </Box>
-    );
+  return (
+    <Box
+      className="signup-page"
+      sx={{ bgcolor: "background.default", color: "text.primary" }}
+    >
+      <Card>
+        <CardHeader
+          title={
+            <Typography variant="h5" color="primary">
+              Create Password
+            </Typography>
+          }
+        />
+        <CardContent>
+          <form onSubmit={handleSubmit}>
+            <TextField
+              label="Create Password"
+              type="password"
+              required
+              fullWidth
+              variant="outlined"
+              margin="normal"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              error={!!passwordError}
+              helperText={passwordError}
+              autoComplete="new-password"
+            />
+            <TextField
+              label="Confirm Password"
+              type="password"
+              required
+              fullWidth
+              variant="outlined"
+              margin="normal"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              error={!!confirmError}
+              helperText={confirmError}
+              autoComplete="new-password"
+            />
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              fullWidth
+              sx={{ mt: 2 }}
+            >
+              Save Password
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </Box>
+  );
 }
