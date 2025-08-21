@@ -11,30 +11,27 @@ export default function Signup() {
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
   const navigate = useNavigate();
   const dispatch = useDispatch<AppDispatch>();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false); // NEW STATE
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    handleLogin();
+    if (!loading) {
+      handleLogin();
+    }
   };
 
   const handleLogin = async () => {
+    setLoading(true); // start loading
+
     try {
       const response = await axios.post(
         `${BaseUrl}/users/login`,
-        {
-          email: email,
-          password: password,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+        { email, password },
+        { headers: { "Content-Type": "application/json" } }
       );
-
-      console.log(response);
 
       if (response.data.message === "Login successful") {
         localStorage.setItem("token", response.data.accessToken);
@@ -47,9 +44,7 @@ export default function Signup() {
       try {
         const token = localStorage.getItem("token");
         const result = await axios.get(`${BaseUrl}/users/verify`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (result.data.message === "Token is valid") {
@@ -73,6 +68,8 @@ export default function Signup() {
       } else {
         console.error(error);
       }
+    } finally {
+      setLoading(false); // stop loading after request finishes
     }
   };
 
@@ -94,7 +91,7 @@ export default function Signup() {
             >
               Welcome to PrepPilot!
               <Typography
-                component="div" // forces a block (new line)
+                component="div"
                 variant="body2"
                 color="text.secondary"
                 sx={{ fontWeight: 400, lineHeight: 1.3 }}
@@ -130,8 +127,9 @@ export default function Signup() {
                 variant="contained"
                 fullWidth
                 sx={{ mt: 2 }}
+                disabled={loading} // disable when loading
               >
-                Sign In
+                {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
           </Box>

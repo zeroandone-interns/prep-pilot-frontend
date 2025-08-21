@@ -20,6 +20,7 @@ export default function CreatePassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [confirmError, setConfirmError] = useState("");
+    const [loading, setLoading] = useState(false); 
   const navigate = useNavigate();
   const session = useSelector((state: RootState) => state.Auth.session);
   const email = useSelector((state: RootState) => state.Auth.email);
@@ -52,6 +53,7 @@ export default function CreatePassword() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
     const pwdError = validatePassword(password);
     if (pwdError) {
       setPasswordError(pwdError);
@@ -65,12 +67,16 @@ export default function CreatePassword() {
 
     setPasswordError("");
     setConfirmError("");
-    handleSetPassword();
+        if (!loading) {
+            handleSetPassword();
+        }
+
   };
 
   const handleSetPassword = async () => {
     try {
-        console.log("calling the handleSubmit")
+      setLoading(true);
+        
       const response = await axios.post(
         `${BaseUrl}/users/complete-new-password`,
         {
@@ -110,7 +116,7 @@ export default function CreatePassword() {
         <CardContent>
           <form onSubmit={handleSubmit}>
             <TextField
-              label="Create Password"
+              label="Set New Password"
               type="password"
               required
               fullWidth
@@ -138,11 +144,11 @@ export default function CreatePassword() {
             <Button
               type="submit"
               variant="contained"
-              color="primary"
               fullWidth
               sx={{ mt: 2 }}
+              disabled={loading}
             >
-              Save Password
+              {loading ? "Setting Password..." : "Set Password"}
             </Button>
           </form>
         </CardContent>
