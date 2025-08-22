@@ -53,6 +53,14 @@ export default function Chatbot() {
   const upMd = useMediaQuery(theme.breakpoints.up("md"));
   const APPBAR_H = upSm ? 64 : 56;
 
+  const BotIcon = ({ size = 20 }: { size?: number }) => (
+  <Box
+    component="img"
+    src="/logo_black.png"
+    alt="Bot"
+    sx={{ width: size, height: size, objectFit: "contain", display: "block" }}
+  />
+);
   // --- END CURRENT SESSION ON TAB CLOSE ---
   useEffect(() => {
     const handleUnload = async () => {
@@ -182,7 +190,7 @@ export default function Chatbot() {
                 <MenuIcon />
               </IconButton>
             )}
-            <SmartToy />
+            <BotIcon size = {40} />
             {!editing ? (
               <>
                 <Typography
@@ -253,7 +261,7 @@ export default function Chatbot() {
                   }}
                 >
                   {m.isBot ? (
-                    <SmartToy fontSize="small" />
+                    <BotIcon size = {30} />
                   ) : (
                     <Person fontSize="small" />
                   )}
