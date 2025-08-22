@@ -1,3 +1,4 @@
+// src/pages/chatbot-page/Chatbot.tsx
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   Box,

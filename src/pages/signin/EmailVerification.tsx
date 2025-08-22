@@ -1,4 +1,4 @@
-// src/pages/EmailVerification.tsx
+// src/pages/signin/EmailVerification.tsx
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {

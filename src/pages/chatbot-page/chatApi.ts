@@ -1,3 +1,4 @@
+// src/pages/chatbot-page/chatApi.ts
 const BASE_URL = "http://localhost:3000/chat";
 
 export const chatApi = {
