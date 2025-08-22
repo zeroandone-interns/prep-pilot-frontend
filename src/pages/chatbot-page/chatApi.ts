@@ -15,7 +15,6 @@ export type ChatSessionDTO = {
   session_created_at: string;
   session_started_at: string | null;
   session_ended_at: string | null;
-  // optional convenience field returned by backend
   lastMessageAt?: string | null;
 };
 
@@ -42,7 +41,7 @@ export const chatApi = {
     const res = await fetch(`${BASE_URL}/session`, {
       method: "POST",
       headers: authHeaders(),
-      body: JSON.stringify({}), // user is taken from token server-side
+      body: JSON.stringify({}),
     });
     if (!res.ok) throw new Error("Failed to create session");
     return res.json();
@@ -63,6 +62,15 @@ export const chatApi = {
       headers: authHeaders(),
     });
     if (!res.ok) throw new Error("Failed to reopen session");
+    return res.json();
+  },
+
+  deleteSession: async (sessionID: number): Promise<{ message: string }> => {
+    const res = await fetch(`${BASE_URL}/session/${sessionID}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error("Failed to delete session");
     return res.json();
   },
 

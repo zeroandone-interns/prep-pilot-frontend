@@ -15,6 +15,12 @@ import {
   TextField,
   Typography,
   useMediaQuery,
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
 import {
@@ -26,11 +32,20 @@ import {
   Menu as MenuIcon,
   Person,
   Send,
+  DeleteForever,
 } from "@mui/icons-material";
 import "./Chatbot.css";
 import { chatApi, type ChatMessageDTO, type ChatSessionDTO } from "./chatApi";
 
-type Msg = { id: number; content: string; isBot: boolean; ts: string };
+type Msg = {
+  id: number | string; // temp ids are strings like "tmp-123"
+  content: string;
+  isBot: boolean;
+  ts: string;
+  saving?: boolean; // show spinner until persisted
+  temp?: boolean; // local placeholder
+};
+
 type LocalChat = {
   id: number;
   title: string;
@@ -39,6 +54,8 @@ type LocalChat = {
 };
 
 const truncate = (s: string, n = 36) => (s.length > n ? s.slice(0, n) + "…" : s);
+const nowIso = () => new Date().toISOString();
+const mkTempId = () => `tmp-${Math.random().toString(36).slice(2, 10)}`;
 
 export default function Chatbot() {
   const theme = useTheme();
@@ -56,9 +73,12 @@ export default function Chatbot() {
   const [titleDraft, setTitleDraft] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  const [busy, setBusy] = useState(false); // disable input while both user+assistant save
+  const [confirmOpen, setConfirmOpen] = useState(false); // delete dialog
+
   const messagesRef = useRef<HTMLDivElement | null>(null);
 
-  // Bot icon (preserve your design)
+  // Bot icon (preserve design)
   const BotIcon = ({ size = 20 }: { size?: number }) => (
     <Box
       component="img"
@@ -90,30 +110,23 @@ export default function Chatbot() {
   useEffect(() => {
     const loadMsgs = async () => {
       if (!curId) return;
-      // If not loaded yet, fetch
       if (!chats[curId]) {
         try {
           const msgs = await chatApi.getMessages(curId);
+          const derived = deriveTitleFromMessages(msgs);
           setChats((prev) => ({
             ...prev,
             [curId]: {
               id: curId,
-              title:
-                sessionTitles[curId] ||
-                deriveTitleFromMessages(msgs) ||
-                `New Chat`,
+              title: sessionTitles[curId] || derived || `New Chat`,
               last:
                 latestTs(msgs) ||
                 sessions.find((s) => s.id === curId)?.session_started_at ||
-                new Date().toISOString(),
+                nowIso(),
               msgs: msgs.map(toLocalMsg),
             },
           }));
-          // If we derived a title, remember it for the sidebar
-          const derived = deriveTitleFromMessages(msgs);
-          if (derived) {
-            setSessionTitles((t) => ({ ...t, [curId]: derived }));
-          }
+          if (derived) setSessionTitles((t) => ({ ...t, [curId]: derived }));
         } catch (e) {
           console.error(e);
         }
@@ -146,6 +159,7 @@ export default function Chatbot() {
   const deriveTitleFromMessages = (msgs: ChatMessageDTO[]) => {
     const firstUser = msgs.find((m) => m.sender === "user");
     return firstUser ? truncate(firstUser.message) : "";
+    // Keep titles client-only to avoid schema changes
   };
 
   const latestTs = (msgs: ChatMessageDTO[]) =>
@@ -169,7 +183,7 @@ export default function Chatbot() {
         [s.id]: {
           id: s.id,
           title: "New Chat",
-          last: s.session_started_at || new Date().toISOString(),
+          last: s.session_started_at || nowIso(),
           msgs: [],
         },
       }));
@@ -181,43 +195,60 @@ export default function Chatbot() {
     }
   };
 
-  // Send message
+  // Delete current session
+  const confirmDelete = () => setConfirmOpen(true);
+  const doDelete = async () => {
+    setConfirmOpen(false);
+    if (!curId) return;
+    try {
+      await chatApi.deleteSession(curId);
+      // prune local state
+      setSessions((list) => list.filter((s) => s.id !== curId));
+      setChats((prev) => {
+        const { [curId]: _, ...rest } = prev;
+        return rest;
+      });
+      // pick another session if available
+      const remaining = sessions.filter((s) => s.id !== curId);
+      setCurId(remaining[0]?.id ?? null);
+    } catch (e) {
+      console.error("Failed to delete session", e);
+    }
+  };
+
+  // Send message with per-message loading + auto assistant reply ("Hi 👋")
   const send = async () => {
-    if (!input.trim() || !curId) return;
+    if (!input.trim() || !curId || busy) return;
     const content = input.trim();
     setInput("");
+    setBusy(true);
 
+    // 1) Add local temp user bubble
+    const userTempId = mkTempId();
+    addLocal(curId, {
+      id: userTempId,
+      content,
+      isBot: false,
+      ts: nowIso(),
+      saving: true,
+      temp: true,
+    });
+
+    // 2) Persist user message
     try {
-      const saved = await chatApi.sendMessage(curId, content, "user");
+      const savedUser = await chatApi.sendMessage(curId, content, "user");
+      replaceTemp(curId, userTempId, savedUser);
 
-      // Update local
+      // Update title if it was "New Chat"
       setChats((prev) => {
-        const existing = prev[curId] || {
-          id: curId,
-          title: sessionTitles[curId] || "New Chat",
-          last: new Date().toISOString(),
-          msgs: [],
-        };
-        const newMsgs = [...existing.msgs, toLocalMsg(saved)];
-        // If title still generic, set first user message as title
+        const c = prev[curId]!;
         const nextTitle =
-          existing.title === "New Chat" && content
-            ? truncate(content)
-            : existing.title;
-
-        // Also reflect the latest time
+          c.title === "New Chat" && content ? truncate(content) : c.title;
         return {
           ...prev,
-          [curId]: {
-            ...existing,
-            title: nextTitle,
-            last: saved.created_at,
-            msgs: newMsgs,
-          },
+          [curId]: { ...c, title: nextTitle, last: savedUser.created_at },
         };
       });
-
-      // keep a sidebar title cache in sync
       setSessionTitles((t) => {
         const curTitle = t[curId];
         if (!curTitle || curTitle === "New Chat") {
@@ -225,20 +256,87 @@ export default function Chatbot() {
         }
         return t;
       });
+    } catch (e) {
+      console.error("Failed to save user message", e);
+      markFailed(curId, userTempId, "(failed to send)");
+      setBusy(false);
+      return;
+    }
 
-      // (Optional) If you later add assistant responses server-side,
-      // you can refetch:
-      // const fresh = await chatApi.getMessages(curId);
-      // setChats((prev) => ({
-      //   ...prev,
-      //   [curId]: { ...prev[curId]!, msgs: fresh.map(toLocalMsg), last: latestTs(fresh) || prev[curId]!.last }
-      // }));
-    } catch (err) {
-      console.error("Failed to send message", err);
+    // 3) Add local temp assistant "typing…" bubble
+    const assistantText = "Hi 👋"; // frontend-generated reply
+    const botTempId = mkTempId();
+    addLocal(curId, {
+      id: botTempId,
+      content: "…",
+      isBot: true,
+      ts: nowIso(),
+      saving: true,
+      temp: true,
+    });
+
+    // 4) Persist assistant reply
+    try {
+      const savedBot = await chatApi.sendMessage(curId, assistantText, "assistant");
+      replaceTemp(curId, botTempId, savedBot);
+    } catch (e) {
+      console.error("Failed to save assistant message", e);
+      markFailed(curId, botTempId, "(assistant failed)");
+    } finally {
+      setBusy(false);
     }
   };
 
-  // Save edited title (local only — preserves design, avoids schema changes)
+  // Helpers to manage local temp -> saved swap
+  const addLocal = (chatId: number, msg: Msg) => {
+    setChats((prev) => {
+      const c = prev[chatId] || {
+        id: chatId,
+        title: sessionTitles[chatId] || "New Chat",
+        last: nowIso(),
+        msgs: [],
+      };
+      return {
+        ...prev,
+        [chatId]: { ...c, msgs: [...c.msgs, msg], last: msg.ts },
+      };
+    });
+  };
+
+  const replaceTemp = (chatId: number, tempId: string, saved: ChatMessageDTO) => {
+    setChats((prev) => {
+      const c = prev[chatId];
+      if (!c) return prev;
+      const msgs = c.msgs.map((m) =>
+        m.id === tempId
+          ? {
+              id: saved.id,
+              content: saved.message,
+              isBot: saved.sender === "assistant",
+              ts: saved.created_at,
+              saving: false,
+              temp: false,
+            }
+          : m
+      );
+      return { ...prev, [chatId]: { ...c, msgs, last: saved.created_at } };
+    });
+  };
+
+  const markFailed = (chatId: number, tempId: string, text: string) => {
+    setChats((prev) => {
+      const c = prev[chatId];
+      if (!c) return prev;
+      const msgs = c.msgs.map((m) =>
+        m.id === tempId
+          ? { ...m, saving: false, content: `${m.content}\n${text}` }
+          : m
+      );
+      return { ...prev, [chatId]: { ...c, msgs } };
+    });
+  };
+
+  // Save edited title (client-only)
   const saveTitle = () => {
     if (!curId) return;
     const t = titleDraft.trim() || "New Chat";
@@ -250,7 +348,7 @@ export default function Chatbot() {
     setEditing(false);
   };
 
-  // Switch chat/session
+  // Switch session
   const selectChat = async (sessionId: number) => {
     if (sessionId === curId) return;
     setCurId(sessionId);
@@ -259,21 +357,20 @@ export default function Chatbot() {
     if (!chats[sessionId]) {
       try {
         const msgs = await chatApi.getMessages(sessionId);
+        const derived = deriveTitleFromMessages(msgs);
         setChats((prev) => ({
           ...prev,
           [sessionId]: {
             id: sessionId,
-            title:
-              sessionTitles[sessionId] ||
-              deriveTitleFromMessages(msgs) ||
-              "New Chat",
+            title: sessionTitles[sessionId] || derived || "New Chat",
             last:
               latestTs(msgs) ||
               sessions.find((s) => s.id === sessionId)?.lastMessageAt ||
-              new Date().toISOString(),
+              nowIso(),
             msgs: msgs.map(toLocalMsg),
           },
         }));
+        if (derived) setSessionTitles((t) => ({ ...t, [sessionId]: derived }));
       } catch (e) {
         console.error(e);
       }
@@ -281,7 +378,7 @@ export default function Chatbot() {
   };
 
   if (!curId && !sessions.length) {
-    // First-time view: still show your layout
+    // First-time blank slate
     return (
       <Box className="chat-container" style={{ height: `calc(100dvh - ${APPBAR_H}px)` }}>
         <Stack direction={{ xs: "column", md: "row" }} className="chat-stack">
@@ -337,9 +434,10 @@ export default function Chatbot() {
                   placeholder="Type your message here…"
                   variant="standard"
                   InputProps={{ disableUnderline: true }}
+                  disabled={busy}
                 />
-                <IconButton color="primary" onClick={() => (curId ? send() : create())} disabled={!input.trim()}>
-                  <Send />
+                <IconButton color="primary" onClick={() => (curId ? send() : create())} disabled={!input.trim() || busy}>
+                  {busy ? <CircularProgress size={22} /> : <Send />}
                 </IconButton>
               </Paper>
             </Box>
@@ -413,6 +511,12 @@ export default function Chatbot() {
                 >
                   {chat?.title || "New Chat"}
                 </Typography>
+
+                {/* Delete current session (tiny icon, keeps header design) */}
+                <IconButton size="small" style={{ color: "inherit" }} onClick={confirmDelete} title="Delete chat">
+                  <DeleteForever />
+                </IconButton>
+
                 <IconButton
                   size="small"
                   style={{ color: "inherit" }}
@@ -465,15 +569,22 @@ export default function Chatbot() {
                   className={`chat-bubble ${m.isBot ? "bot" : "user"}`}
                   style={
                     !m.isBot
-                      ? {
-                          backgroundColor: alpha(theme.palette.primary.main, 0.08),
-                        }
+                      ? { backgroundColor: alpha(theme.palette.primary.main, 0.08) }
                       : {}
                   }
                 >
-                  <Typography variant="body2">{m.content}</Typography>
+                  <Typography variant="body2">
+                    {m.temp && m.isBot && m.content === "…" ? "Assistant is typing…" : m.content}
+                  </Typography>
                   <Typography className={`chat-timestamp ${m.isBot ? "bot" : "user"}`}>
                     {new Date(m.ts).toLocaleTimeString()}
+                    {m.saving && (
+                      <>
+                        {" "}
+                        • <CircularProgress size={12} sx={{ verticalAlign: "middle" }} />
+                        <span> Saving…</span>
+                      </>
+                    )}
                   </Typography>
                 </Paper>
               </Box>
@@ -498,14 +609,31 @@ export default function Chatbot() {
                 placeholder="Type your message here…"
                 variant="standard"
                 InputProps={{ disableUnderline: true }}
+                disabled={busy}
               />
-              <IconButton color="primary" onClick={send} disabled={!input.trim()}>
-                <Send />
+              <IconButton color="primary" onClick={send} disabled={!input.trim() || busy}>
+                {busy ? <CircularProgress size={22} /> : <Send />}
               </IconButton>
             </Paper>
           </Box>
         </Paper>
       </Stack>
+
+      {/* Delete dialog */}
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+        <DialogTitle>Delete this chat?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will permanently remove the chat and its messages. This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={doDelete}>
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
