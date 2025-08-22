@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   Box,
   Button,
@@ -18,7 +18,6 @@ import {
 import { alpha, useTheme } from "@mui/material/styles";
 import {
   Send,
-  SmartToy,
   Person,
   Add,
   ChatBubble,
@@ -53,14 +52,19 @@ export default function Chatbot() {
   const upMd = useMediaQuery(theme.breakpoints.up("md"));
   const APPBAR_H = upSm ? 64 : 56;
 
+  // use a custom PNG logo for bot
   const BotIcon = ({ size = 20 }: { size?: number }) => (
-  <Box
-    component="img"
-    src="/logo_black.png"
-    alt="Bot"
-    sx={{ width: size, height: size, objectFit: "contain", display: "block" }}
-  />
-);
+    <Box
+      component="img"
+      src="/logo_black.png"
+      alt="Bot"
+      sx={{ width: size, height: size, objectFit: "contain", display: "block" }}
+    />
+  );
+
+  // ref to the scrollable messages container
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+
   // --- END CURRENT SESSION ON TAB CLOSE ---
   useEffect(() => {
     const handleUnload = async () => {
@@ -76,6 +80,13 @@ export default function Chatbot() {
     window.addEventListener("beforeunload", handleUnload);
     return () => window.removeEventListener("beforeunload", handleUnload);
   }, [chat]);
+
+  // --- AUTO-SCROLL TO BOTTOM ON NEW MESSAGES ---
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [chat?.msgs.length]);
 
   // --- CREATE NEW CHAT SESSION ---
   const create = async () => {
@@ -190,7 +201,7 @@ export default function Chatbot() {
                 <MenuIcon />
               </IconButton>
             )}
-            <BotIcon size = {40} />
+            <BotIcon size={40} />
             {!editing ? (
               <>
                 <Typography
@@ -246,7 +257,7 @@ export default function Chatbot() {
           </Box>
 
           {/* Messages */}
-          <Box className="chat-messages">
+          <Box className="chat-messages" ref={messagesRef}>
             {chat.msgs.map((m) => (
               <Box
                 key={m.id}
@@ -261,7 +272,7 @@ export default function Chatbot() {
                   }}
                 >
                   {m.isBot ? (
-                    <BotIcon size = {30} />
+                    <BotIcon size={30} />
                   ) : (
                     <Person fontSize="small" />
                   )}
