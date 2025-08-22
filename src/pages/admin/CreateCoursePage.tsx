@@ -15,8 +15,8 @@ import {
 import { Link as LinkIcon } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import Dropzone from "react-dropzone";
 
-import Grid from '@mui/material/Grid';
 export default function CreateCoursePage() {
   const navigate = useNavigate();
 
@@ -33,10 +33,8 @@ export default function CreateCoursePage() {
   const token = localStorage.getItem("token");
   const sub = localStorage.getItem("sub");
 
-  const onSelectFiles = (files: FileList | null) => {
-    if (!files) return;
-    const list = Array.from(files);
-    setDocuments((prev) => [...prev, ...list]);
+  const onDrop = (acceptedFiles: File[]) => {
+    setDocuments((prev) => [...prev, ...acceptedFiles]);
   };
 
   const removeDocument = (idx: number) =>
@@ -52,9 +50,6 @@ export default function CreateCoursePage() {
 
     try {
       const userRes = await axios.get(`${BaseUrl}/users/by-sub-db/${sub}`);
-
-      console.log(userRes);
-
       const user = userRes.data;
       const userId = user.id;
       const organizationId = user.organization_id;
@@ -66,50 +61,49 @@ export default function CreateCoursePage() {
       const CreatedCourse = await axios.post(
         `${BaseUrl}/courses`,
         {
-          title: title,
-          description: description,
-          level: level,
-          duration: duration,
+          title,
+          description,
+          level,
+          duration,
           nb_of_modules: nbOfModules,
           nb_of_sections: nbOfSections,
           createdById: userId,
-          organizationId: organizationId,
+          organizationId,
         },
         {
           headers: {
             Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json", // ensure JSON is sent
+            "Content-Type": "application/json",
           },
         }
       );
 
       alert("Course created successfully!");
-      console.log(CreatedCourse);
       const courseId = CreatedCourse.data.id;
 
-      if (documents.length === 0) return;
+      if (documents.length > 0) {
+        const formData = new FormData();
+        documents.forEach((file) => {
+          formData.append("files", file);
+        });
 
-      const formData = new FormData();
-      documents.forEach((file) => {
-        formData.append("files", file);
-      });
+        try {
+          const response = await axios.post(
+            `${BaseUrl}/courses/upload/${courseId}`,
+            formData,
+            {
+              headers: {
+                "Content-Type": "multipart/form-data",
+              },
+            }
+          );
 
-      try {
-        const response = await axios.post(
-          `${BaseUrl}/courses/upload/${courseId}`,
-          formData,
-          {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          }
-        );
-
-        console.log("Upload response:", response.data);
-        alert("Files uploaded successfully");
-      } catch (err) {
-        console.error(err);
-        alert("Failed to upload files");
+          console.log("Upload response:", response.data);
+          alert("Files uploaded successfully");
+        } catch (err) {
+          console.error(err);
+          alert("Failed to upload files");
+        }
       }
 
       navigate("/admin/courses");
@@ -179,32 +173,40 @@ export default function CreateCoursePage() {
               <LinkIcon fontSize="small" /> Documents
             </Divider>
 
-            <Stack spacing={1}>
-              <Button variant="outlined" component="label">
-                Select Files
-                <input
-                  hidden
-                  multiple
-                  type="file"
-                  onChange={(e) => onSelectFiles(e.target.files)}
-                />
-              </Button>
-
-              {documents.length > 0 && (
+            {/* Dropzone Integration */}
+            <Dropzone onDrop={onDrop}>
+              {({ getRootProps, getInputProps }) => (
                 <Paper
                   variant="outlined"
-                  sx={{ p: 1, display: "flex", gap: 1, flexWrap: "wrap" }}
+                  sx={{
+                    p: 3,
+                    border: "2px dashed #ccc",
+                    textAlign: "center",
+                    cursor: "pointer",
+                  }}
+                  {...getRootProps()}
                 >
-                  {documents.map((f, i) => (
-                    <Chip
-                      key={i}
-                      label={f.name}
-                      onDelete={() => removeDocument(i)}
-                    />
-                  ))}
+                  <input {...getInputProps()} />
+                  <p>Drag & drop some files here, or click to select files</p>
                 </Paper>
               )}
-            </Stack>
+            </Dropzone>
+
+            {/* Preview selected files */}
+            {documents.length > 0 && (
+              <Paper
+                variant="outlined"
+                sx={{ p: 1, display: "flex", gap: 1, flexWrap: "wrap" }}
+              >
+                {documents.map((f, i) => (
+                  <Chip
+                    key={i}
+                    label={f.name}
+                    onDelete={() => removeDocument(i)}
+                  />
+                ))}
+              </Paper>
+            )}
 
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
               <Button
