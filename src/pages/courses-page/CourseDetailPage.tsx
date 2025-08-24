@@ -1,45 +1,165 @@
-// src/pages/courses-page/CourseDetailPage.tsx
-import * as React from "react"
-import { useParams, Link as RouterLink } from "react-router-dom"
-import { useAppSelector } from "@/store"
-import { Box, Breadcrumbs, Link, Typography, List, ListItem, ListItemButton, ListItemText, Divider, Button } from "@mui/material"
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import {
+  Box,
+  Typography,
+  Divider,
+  Button,
+  Card,
+  CardActionArea,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Tooltip,
+  Stack,
+} from "@mui/material";
+import axios from "axios";
+import { Link as RouterLink } from "react-router-dom";
 
 export default function CourseDetailPage() {
-  const { id } = useParams()
-  const course = useAppSelector((s) => s.courses.items.find((c) => c.id === id))
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const BaseUrl = import.meta.env.VITE_API_BASE_URL;
 
-  if (!course) return <Typography>Course not found.</Typography>
+  const {
+    enrolled: initialEnrolled,
+    title,
+    description,
+    level,
+  } = location.state || {
+    enrolled: false,
+    title: "",
+    description: "",
+    level: "",
+  };
+
+  const [enrolled, setEnrolled] = useState(initialEnrolled);
+  const [modules, setModules] = useState<{ id: number; title: string }[]>([]);
+  const [openDialog, setOpenDialog] = useState(false);
+
+  // Fetch modules only
+  useEffect(() => {
+    const fetchModules = async () => {
+      try {
+        const ModulesRes = await axios.get(`${BaseUrl}/courses/module/${id}`);
+        setModules(ModulesRes.data);
+      } catch (err) {
+        console.error("Failed to fetch modules:", err);
+      }
+    };
+    fetchModules();
+  }, [id, BaseUrl]);
+
+  if (!modules) return <Typography>Course not found.</Typography>;
 
   return (
-    <Box>
-      <Breadcrumbs sx={{ mb: 2 }}>
-        <Link component={RouterLink} to="/courses" underline="hover">Courses</Link>
-        <Typography color="text.primary">{course.title}</Typography>
-      </Breadcrumbs>
+    <Box sx={{ p: 3 }}>
+      {/* Top Section: Course Info + Enroll Button */}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        justifyContent="space-between"
+        alignItems={{ xs: "flex-start", sm: "center" }}
+        spacing={2}
+        sx={{ mb: 4 }}
+      >
+        <Box>
+          <Typography variant="h4" gutterBottom>
+            {title}
+          </Typography>
+          <Typography variant="body1" color="text.secondary" gutterBottom>
+            {description}
+          </Typography>
+          <Typography
+            variant="subtitle2"
+            color="text.secondary"
+            sx={{ fontStyle: "italic" }}
+          >
+            Level: {level || "N/A"}
+          </Typography>
+        </Box>
 
-      <Typography variant="h4" sx={{ mb: 1 }}>{course.title}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Difficulty: {course.difficulty} • Services: {course.awsServices.join(", ")}
-      </Typography>
+        <Box>
+          <Button
+            variant="contained"
+            color={enrolled ? "success" : "primary"}
+            onClick={() => setOpenDialog(true)}
+            disabled={enrolled}
+          >
+            {enrolled ? "Enrolled" : "Enroll Now"}
+          </Button>
+        </Box>
+      </Stack>
 
-      <Typography variant="h6" sx={{ mt: 2 }}>Modules</Typography>
-      <List>
-        {course.modules.map((m, idx) => (
-          <ListItem key={m.id} disablePadding>
-            <ListItemButton component={RouterLink} to={`/courses/${course.id}/modules/${m.id}`}>
-              <ListItemText primary={`Module ${idx + 1}: ${m.title}`} />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
+      {/* Enrollment Confirmation Modal */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
+        <DialogTitle>Confirm Enrollment</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to enroll in this course?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)} color="secondary">
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              setEnrolled(true);
+              setOpenDialog(false);
+              // TODO: Call backend enrollment endpoint here
+            }}
+            color="primary"
+            variant="contained"
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      <Divider sx={{ my: 2 }} />
+      {/* Modules List */}
+      {modules.map((m, index) => (
+        <Card
+          key={m.id}
+          sx={{
+            mb: 2,
+            opacity: enrolled ? 1 : 0.5,
+            pointerEvents: enrolled ? "auto" : "none",
+            transition: "opacity 0.3s",
+            boxShadow: 3,
+            borderRadius: 2,
+          }}
+        >
+          {enrolled ? (
+            <CardActionArea
+              component={RouterLink}
+              to={`/courses/${id}/modules/${m.id}`}
+              state={{
+                Coursetitle: title,
+                Moduletitle: m.title,
+              }}
+            >
+              <Box sx={{ p: 2 }}>
+                <Typography color="text.primary">
+                  {index + 1}. {m.title}
+                </Typography>
+              </Box>
+            </CardActionArea>
+          ) : (
+            <Tooltip title="Enroll now to access this module">
+              <Box sx={{ p: 2 }}>
+                <Typography color="text.secondary">
+                  {index + 1}. {m.title}
+                </Typography>
+              </Box>
+            </Tooltip>
+          )}
+        </Card>
+      ))}
 
-      {course.finalExam && (
-        <Button variant="contained" component={RouterLink} to={`/courses/${course.id}/exam`}>
-          Take Final Exam
-        </Button>
-      )}
+      <Divider sx={{ mt: 3 }} />
     </Box>
-  )
+  );
 }
