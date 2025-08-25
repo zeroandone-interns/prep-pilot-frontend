@@ -21,24 +21,26 @@ import {
   InputLabel,
   FormControl,
   Typography,
+  CircularProgress,
 } from "@mui/material";
 import { PersonAdd, Delete } from "@mui/icons-material";
 import { useState, useEffect } from "react";
 import axios from "axios";
+import Papa from "papaparse";
 
 export default function AdminUsers() {
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
 
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [addForm, setAddForm] = useState({
     firstName: "",
     lastName: "",
     email: "",
     role: "learner" as "learner" | "admin",
   });
-  const [organizationId, setOrganizationId] = useState();
-
-  // Start with empty array
+  const [csvUsers, setCsvUsers] = useState<any[]>([]); // <--- parsed CSV users
+  const [organizationId, setOrganizationId] = useState<number | undefined>();
   const [users, setUsers] = useState<
     {
       sub: string;
@@ -54,7 +56,6 @@ export default function AdminUsers() {
   const handleDelete = async (sub: string) => {
     try {
       await axios.delete(`${BaseUrl}/users/${sub}`);
-      // Remove deleted user from state
       setUsers((prev) => prev.filter((u) => u.sub !== sub));
     } catch (err) {
       console.error("Failed to delete user:", err);
@@ -64,31 +65,27 @@ export default function AdminUsers() {
   const fetchUsers = async () => {
     if (!sub) {
       alert("User not found in localStorage.");
+      setLoading(false);
       return;
     }
 
-    console.log("sub", sub);
+    setLoading(true);
 
     try {
-      // Get current user info
       const userRes = await axios.get(`${BaseUrl}/users/by-sub-db/${sub}`);
       const user = userRes.data;
-      const { id: userId, organization_id: organizationId } = user;
+      const { id: userId, organization_id } = user;
 
-      console.log(userId, organizationId);
-
-      if (!userId || !organizationId) {
+      if (!userId || !organization_id) {
         throw new Error("Missing userId or organizationId from backend.");
       }
-      setOrganizationId(organizationId);
-      // Get all users in organization
+
+      setOrganizationId(organization_id);
+
       const usersResult = await axios.get(
-        `${BaseUrl}/users/by-org/${organizationId}`
+        `${BaseUrl}/users/by-org/${organization_id}`
       );
 
-      console.log(usersResult);
-
-      // Map to extract attributes
       const mappedUsers = usersResult.data.map((u: any) => ({
         sub: u.attributes.sub,
         given_name: u.attributes.given_name,
@@ -100,15 +97,18 @@ export default function AdminUsers() {
       setUsers(mappedUsers);
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
+
   useEffect(() => {
     fetchUsers();
   }, []);
 
   const handleAddUser = async () => {
     try {
-      const AddedUser = await axios.post(
+      await axios.post(
         `${BaseUrl}/users/admin-create`,
         {
           firstName: addForm.firstName,
@@ -123,13 +123,64 @@ export default function AdminUsers() {
           },
         }
       );
-      console.log(AddedUser);
       alert("User was added!");
       fetchUsers();
     } catch (error) {
       console.log(error);
     }
   };
+
+  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        console.log("Parsed CSV:", results.data);
+        setCsvUsers(results.data);
+      },
+      error: (err) => {
+        console.error("CSV parsing error:", err);
+      },
+    });
+  };
+
+  const handleBulkAddUsers = async () => {
+    if (!csvUsers.length) return;
+    try {
+      for (const u of csvUsers) {
+        await axios.post(`${BaseUrl}/users/admin-create`, {
+          firstName: u["First Name"],
+          lastName: u["LastName"],
+          email: u["email"],
+          role: u["role"] || "learner",
+          organizationId,
+        });
+      }
+      alert("Users from CSV were added!");
+      fetchUsers();
+      setCsvUsers([]);
+    } catch (err) {
+      console.error("Bulk add failed:", err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "50vh",
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -223,19 +274,30 @@ export default function AdminUsers() {
               }
             >
               <MenuItem value="learner">Learner</MenuItem>
-              <MenuItem value="instructor">instructor</MenuItem>
+              <MenuItem value="instructor">Instructor</MenuItem>
             </Select>
           </FormControl>
+
+          <Typography variant="subtitle1">Or upload CSV</Typography>
+          <input type="file" accept=".csv" onChange={handleCsvUpload} />
+          {csvUsers.length > 0 && (
+            <Typography variant="body2">
+              {csvUsers.length} users parsed from CSV
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>Cancel</Button>
           <Button
             variant="contained"
             onClick={() => {
-              if (!addForm.firstName || !addForm.lastName || !addForm.email)
-                return;
-
-              handleAddUser();
+              if (csvUsers.length > 0) {
+                handleBulkAddUsers();
+              } else {
+                if (!addForm.firstName || !addForm.lastName || !addForm.email)
+                  return;
+                handleAddUser();
+              }
 
               setAddForm({
                 firstName: "",
@@ -243,6 +305,7 @@ export default function AdminUsers() {
                 email: "",
                 role: "learner",
               });
+              setCsvUsers([]);
               setOpen(false);
             }}
           >

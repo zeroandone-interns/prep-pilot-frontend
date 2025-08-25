@@ -13,6 +13,10 @@ import {
   IconButton,
   Button,
   TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import { Delete, Edit, Save, Cancel, ArrowBack } from "@mui/icons-material";
 import { useDropzone } from "react-dropzone";
@@ -37,6 +41,7 @@ interface Course {
 export default function AdminViewCourse() {
   const { courseId } = useParams<{ courseId: string }>();
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
+  const AIUrl = import.meta.env.VITE_AI_BASE_URL;
   const navigate = useNavigate();
   const [course, setCourse] = useState<Course | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -44,6 +49,8 @@ export default function AdminViewCourse() {
   const [newDocs, setNewDocs] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const token = localStorage.getItem("token");
+  const [pendingDeletes, setPendingDeletes] = useState<number[]>([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -62,45 +69,67 @@ export default function AdminViewCourse() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleDeleteDoc = async (docId: number) => {
-    try {
-      await axios.delete(`${BaseUrl}/courses/documents/${docId}`);
-      setCourse((prev) =>
-        prev
-          ? { ...prev, documents: prev.documents.filter((d) => d.id !== docId) }
-          : prev
-      );
-    } catch (err) {
-      console.error("Failed to delete document:", err);
-    }
+
+  const handleMarkDeleteDoc = (docId: number) => {
+    setCourse((prev) =>
+      prev
+        ? { ...prev, documents: prev.documents.filter((d) => d.id !== docId) }
+        : prev
+    );
+    setPendingDeletes((prev) => [...prev, docId]);
   };
 
-  const handleSave = async () => {
-    try {
-      setLoading(true);
-      // update course fields
-      await axios.put(`${BaseUrl}/courses/${courseId}`, formData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
 
-      // upload new docs if any
-      if (newDocs.length > 0) {
-        const form = new FormData();
-        newDocs.forEach((file) => form.append("files", file));
-        await axios.post(`${BaseUrl}/courses/upload/${courseId}`, form, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-      }
 
-      // refresh course
-      const res = await axios.get(`${BaseUrl}/courses/details/${courseId}`);
-      setCourse(res.data);
-      setEditMode(false);
-      setNewDocs([]);
-    } catch (err) {
-      console.error("Failed to save changes:", err);
-    }
-  };
+const handleSave = async () => {
+  setConfirmOpen(true);
+};
+
+const handleConfirmSave = async () => {
+  try {
+    setLoading(true);
+
+    // 1. update course fields
+    await axios.put(`${BaseUrl}/courses/${courseId}`, formData, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    // 2. delete pending documents
+if (pendingDeletes.length > 0) {
+  for (const docId of pendingDeletes) {
+    await axios.delete(`${BaseUrl}/courses/documents/${docId}`);
+  }
+}
+
+    // 3. upload new docs if any
+    if (newDocs.length > 0) {
+      const form = new FormData();
+      newDocs.forEach((file) => form.append("files", file));
+      await axios.post(`${BaseUrl}/courses/upload/${courseId}`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      }); 
+    }/*else {  //else we need to call the ai generate course endpoint (if no new documents are uploaded)
+         const generateCourse = await axios.post(
+           `${AIUrl}/generate_content`,
+           {
+             course_id: courseId,
+           }
+         );
+    }*/
+
+    // 4. refresh course
+    const res = await axios.get(`${BaseUrl}/courses/details/${courseId}`);
+    setCourse(res.data);
+    setEditMode(false);
+    setNewDocs([]);
+    setPendingDeletes([]);
+  } catch (err) {
+    console.error("Failed to save changes:", err);
+  } finally {
+    setLoading(false);
+    setConfirmOpen(false);
+  }
+};
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setNewDocs((prev) => [...prev, ...acceptedFiles]);
@@ -234,7 +263,7 @@ export default function AdminViewCourse() {
                     <IconButton
                       edge="end"
                       color="error"
-                      onClick={() => handleDeleteDoc(doc.id)}
+                      onClick={() => handleMarkDeleteDoc(doc.id)}
                     >
                       <Delete />
                     </IconButton>
@@ -308,6 +337,25 @@ export default function AdminViewCourse() {
           </Box>
         )}
       </Paper>
+
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+        <DialogTitle>Confirm Changes</DialogTitle>
+        <DialogContent>
+          Are you sure you want to apply these changes?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)} color="inherit">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmSave}
+            color="primary"
+            disabled={loading}
+          >
+            {loading ? "Applying..." : "Confirm"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

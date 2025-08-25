@@ -21,6 +21,7 @@ export default function CoursesPage() {
       description: string;
       level: string;
       enrolled: boolean;
+      progress: number;
     }[]
   >([]);
 
@@ -36,11 +37,23 @@ export default function CoursesPage() {
 
         if (!userId) throw new Error("Missing userId from backend.");
 
-        const coursesRes = await axios.get(
-          `${BaseUrl}/courses/by-user/${userId}`
-        );
+       const coursesRes = await axios.get(
+         `${BaseUrl}/courses/by-user/${userId}`
+       );
+       const coursesData = coursesRes.data;
 
-        SetCourses(coursesRes.data);
+    
+       const coursesWithProgress = await Promise.all(
+         coursesData.map(async (c: any) => {
+           if (!c.enrolled) return { ...c, progress: 0 }; // not enrolled yet
+           const progressRes = await axios.get(
+             `${BaseUrl}/courses/progress/${userId}/course/${c.id}`
+           );
+           return { ...c, progress: progressRes.data?.percentage ?? 0 };
+         })
+       );
+
+       SetCourses(coursesWithProgress);
       } catch (err) {
         console.error("Failed to fetch courses:", err);
       }
@@ -96,6 +109,31 @@ export default function CoursesPage() {
                   : `linear-gradient(90deg, ${t.palette.primary.main}, ${t.palette.secondary.main})`,
               })}
             />
+
+ { c.enrolled &&
+<>
+            <Box
+              sx={{
+                height: 6,
+                borderRadius: 3,
+                background: "#e0e0e0", // light gray for empty part
+                overflow: "hidden",
+                mb: 1,
+              }}
+            >
+              <Box
+                sx={(t) => ({
+                  height: "100%",
+                  width: `${c.progress}%`,
+                  background: t.palette.success.main,
+                  transition: "width 0.3s ease",
+                })}
+              />
+            </Box>
+            <Typography variant="caption" sx={{ pl: 1 }}>
+              {c.progress}% completed
+            </Typography></>}
+
             <CardActionArea
               component={RouterLink}
               to={`/courses/${c.id}`}
@@ -103,7 +141,7 @@ export default function CoursesPage() {
                 enrolled: c.enrolled,
                 title: c.title,
                 description: c.description,
-                level: c.level
+                level: c.level,
               }}
             >
               <CardContent sx={{ p: 2.25 }}>

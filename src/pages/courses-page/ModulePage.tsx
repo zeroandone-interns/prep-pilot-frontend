@@ -1,5 +1,10 @@
 import * as React from "react";
-import { useParams, Link as RouterLink, useLocation } from "react-router-dom";
+import {
+  useParams,
+  Link as RouterLink,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { useState, useEffect } from "react";
 import {
   Box,
@@ -8,9 +13,11 @@ import {
   Link,
   Divider,
   CircularProgress,
+  Card,
+  CardActionArea,
+  CardContent,
+  Stack,
 } from "@mui/material";
-import MediaBlock from "@/components/MediaBlock";
-import Quiz from "@/components/Quiz";
 import axios from "axios";
 
 interface Section {
@@ -18,27 +25,25 @@ interface Section {
   title: string;
   is_complete: boolean;
   module_id: number;
-  blocks?: { kind: string; text?: string; media?: any }[];
-  quiz?: any[];
 }
 
 export default function SectionPage() {
+  const BaseUrl = import.meta.env.VITE_API_BASE_URL;
   const location = useLocation();
+  const navigate = useNavigate();
   const { id: courseId, moduleId } = useParams<{
     id: string;
     moduleId: string;
   }>();
+
   const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-const { Coursetitle, Moduletitle } = (location.state as {
-  Coursetitle: string;
-  Moduletitle: string;
-}) || { Coursetitle: "", Moduletitle: "" };
-
-console.log("Course:", Coursetitle);
-console.log("Module:", Moduletitle);
+  const { Coursetitle, Moduletitle } = (location.state as {
+    Coursetitle: string;
+    Moduletitle: string;
+  }) || { Coursetitle: "", Moduletitle: "" };
 
   useEffect(() => {
     if (!moduleId) return;
@@ -46,9 +51,7 @@ console.log("Module:", Moduletitle);
     const fetchSections = async () => {
       try {
         setLoading(true);
-        const res = await axios.get(
-          `http://localhost:3000/courses/section/${moduleId}`
-        );
+        const res = await axios.get(`${BaseUrl}/courses/section/${moduleId}`);
         setSections(res.data);
         setLoading(false);
       } catch (err: any) {
@@ -68,7 +71,7 @@ console.log("Module:", Moduletitle);
   return (
     <Box>
       {/* Breadcrumbs */}
-      <Breadcrumbs sx={{ mb: 2 }}>
+      <Breadcrumbs sx={{ mb: 3 }}>
         <Link component={RouterLink} to="/courses" underline="hover">
           Courses
         </Link>
@@ -88,40 +91,54 @@ console.log("Module:", Moduletitle);
         </Link>
       </Breadcrumbs>
 
-      {/* Sections List */}
-      {sections.map((section) => (
-        <Box key={section.id} sx={{ mb: 4 }}>
-          <Typography variant="h4" sx={{ mb: 1 }}>
-            {section.title}
-          </Typography>
-          <Divider sx={{ mb: 2 }} />
+      <Typography variant="h4" sx={{ mb: 2 }}>
+        Sections in {Moduletitle}
+      </Typography>
+      <Divider sx={{ mb: 3 }} />
 
-          {section.blocks?.map((b, i) =>
-            b.kind === "paragraph" ? (
-              <Typography key={i} sx={{ mb: 2 }}>
-                {b.text}
-              </Typography>
-            ) : (
-              <MediaBlock key={i} media={b.media} />
-            )
-          )}
-
-          {section.quiz && section.quiz.length > 0 && (
-            <>
-              <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>
-                Section Quiz
-              </Typography>
-              <Quiz
-                questions={section.quiz}
-                onSubmit={(score, total) => {
-                  console.log("Section quiz submitted", { score, total });
-                  // TODO: mark section as completed in backend
-                }}
-              />
-            </>
-          )}
-        </Box>
-      ))}
+      {/* Sections List (Stack instead of Grid) */}
+      <Stack spacing={3}>
+        {sections.map((section) => (
+          <Card
+            key={section.id}
+            sx={{
+              borderRadius: 2,
+              boxShadow: 3,
+              transition: "0.3s",
+              "&:hover": { boxShadow: 6 },
+            }}
+          >
+            <CardActionArea
+              onClick={() =>
+                navigate(
+                  `/courses/${courseId}/modules/${moduleId}/sections/${section.id}`,
+                  {
+                    state: {
+                      Coursetitle,
+                      Moduletitle,
+                      Sectiontitle: section.title,
+                    },
+                  }
+                )
+              }
+            >
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  {section.title}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color={
+                    section.is_complete ? "success.main" : "text.secondary"
+                  }
+                >
+                  {section.is_complete ? "Completed ✅" : "Not completed"}
+                </Typography>
+              </CardContent>
+            </CardActionArea>
+          </Card>
+        ))}
+      </Stack>
     </Box>
   );
 }

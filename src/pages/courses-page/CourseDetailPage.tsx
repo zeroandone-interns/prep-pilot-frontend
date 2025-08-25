@@ -23,6 +23,7 @@ export default function CourseDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
+  const token = localStorage.getItem("token");
 
   const {
     enrolled: initialEnrolled,
@@ -39,6 +40,7 @@ export default function CourseDetailPage() {
   const [enrolled, setEnrolled] = useState(initialEnrolled);
   const [modules, setModules] = useState<{ id: number; title: string }[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
+  const [userId, setUserId] = useState(null);
 
   // Fetch modules only
   useEffect(() => {
@@ -50,8 +52,26 @@ export default function CourseDetailPage() {
         console.error("Failed to fetch modules:", err);
       }
     };
+
     fetchModules();
-  }, [id, BaseUrl]);
+    fetchUser();
+  }, [id]);
+
+  const fetchUser = async () => {
+    try {
+      const sub = localStorage.getItem("sub");
+      if (!sub) return console.error("No sub found in localStorage");
+
+      const userRes = await axios.get(`${BaseUrl}/users/by-sub-db/${sub}`);
+      const user = userRes.data;
+      const userId = user.id;
+      setUserId(userId);
+
+      if (!userId) throw new Error("Missing userId from backend.");
+    } catch (error) {
+      console.log(error);
+    }
+  };
 
   if (!modules) return <Typography>Course not found.</Typography>;
 
@@ -106,10 +126,18 @@ export default function CourseDetailPage() {
             Cancel
           </Button>
           <Button
-            onClick={() => {
+            onClick={async () => {
               setEnrolled(true);
               setOpenDialog(false);
-              // TODO: Call backend enrollment endpoint here
+              await axios.post(
+                `${BaseUrl}/courses/enroll/${id}`,
+                {}, 
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
+                }
+              );
             }}
             color="primary"
             variant="contained"

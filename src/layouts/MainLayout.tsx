@@ -50,20 +50,22 @@ const links = [
     icon: <SchoolIcon />,
     roles: ["instructor"],
   },
-
 ];
-
 
 export default function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch<AppDispatch>();
   const [open, setOpen] = React.useState(false);
+  const [showLearnerView, setShowLearnerView] = React.useState(false);
 
   const groups = localStorage.getItem("groups");
 
+  // Filter links based on real role OR temporary learner view toggle
   const filteredLinks = links.filter((link) =>
-    link.roles.some((role) => groups?.includes(role))
+    showLearnerView
+      ? link.roles.includes("learner") // show only learner links when toggled
+      : link.roles.some((role) => groups?.includes(role))
   );
 
   const handleLogout = () => {
@@ -83,11 +85,7 @@ export default function MainLayout() {
             key={l.to}
             selected={location.pathname === l.to}
             onClick={() => {
-              if (l.label === "Logout") {
-                handleLogout();
-              } else {
-                navigate(l.to);
-              }
+              navigate(l.to);
               setOpen(false);
             }}
           >
@@ -99,12 +97,10 @@ export default function MainLayout() {
     </Box>
   );
 
-
   return (
     <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <AppBar position="sticky" color="primary" elevation={1}>
         <Toolbar sx={{ gap: 2 }}>
-          {/* Always show hamburger to open the Drawer */}
           <IconButton
             edge="start"
             color="inherit"
@@ -114,7 +110,6 @@ export default function MainLayout() {
             <MenuIcon />
           </IconButton>
 
-          {/* Logo */}
           <Box
             component="img"
             src="/new_logo_3.png"
@@ -122,17 +117,33 @@ export default function MainLayout() {
             sx={{ height: 48, width: "auto", display: "block" }}
           />
 
-          {/* Title */}
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             PrepPilot
           </Typography>
 
-          {/* (Optional) quick Logout button on the right; keep if you want */}
+          {/* Learner Experience toggle (only for instructors) */}
+          {groups?.includes("instructor") && (
+            <Button
+              color="inherit"
+              variant={"outlined"}
+              onClick={() => {
+                setShowLearnerView((prev) => !prev);
+                if (showLearnerView) {
+                  navigate("/courses");
+                } else {
+                  navigate("/admin/courses");
+                }
+              }}
+              sx={{ mr: 1 }}
+            >
+              {showLearnerView ? "Exit Learner View" : "Learner Experience"}
+            </Button>
+          )}
+
           <Button
             color="inherit"
             onClick={handleLogout}
             startIcon={<LogoutIcon />}
-            sx={{ display: { xs: "none", sm: "inline-flex" } }} // hide on very small screens
           >
             Logout
           </Button>
