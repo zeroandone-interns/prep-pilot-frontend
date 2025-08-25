@@ -7,6 +7,7 @@ import axios from "axios";
 import { type AppDispatch } from "@/store";
 import { useDispatch } from "react-redux";
 import { setAuth } from "@/store/AuthSlice";
+import { useSnackbar } from "@/components/SnackbarProvider";
 
 export default function Signup() {
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
@@ -16,6 +17,8 @@ export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false); // NEW STATE
+
+  const { showMessage } = useSnackbar();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,7 +68,7 @@ export default function Signup() {
       }
     } catch (error: any) {
       if (axios.isAxiosError(error)) {
-        alert(error.response?.data?.message || "Something went wrong");
+        showMessage(error.response?.data?.message || "Something went wrong", "error");
       } else {
         console.error(error);
       }

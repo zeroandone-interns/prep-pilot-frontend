@@ -1,6 +1,7 @@
 // src/pages/signin/EmailVerification.tsx
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSnackbar } from "@/components/SnackbarProvider";
 import {
     Button,
     TextField,
@@ -23,6 +24,8 @@ export default function EmailVerification() {
     const [isCodeSent, setIsCodeSent] = useState(false);
     const navigate = useNavigate();
 
+    const { showMessage } = useSnackbar();
+
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
     // Countdown timer for resend code
@@ -39,7 +42,7 @@ export default function EmailVerification() {
 
     const handleSendCode = () => {
         if (!email) {
-            alert("Please enter your email");
+            showMessage("Please enter your email", "info");
             return;
         }
         // TODO: Call backend API to send code
@@ -80,7 +83,7 @@ export default function EmailVerification() {
         e.preventDefault();
         const enteredCode = code.join("");
         if (enteredCode.length !== CODE_LENGTH) {
-            alert(`Please enter the ${CODE_LENGTH}-digit code`);
+            showMessage(`Please enter the ${CODE_LENGTH}-digit code`, "info");
             return;
         }
 
