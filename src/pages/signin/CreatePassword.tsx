@@ -38,7 +38,7 @@ export default function CreatePassword() {
   useEffect(() => {
     if (!session || !email) {
       showMessage("Your session has expired or your email is invalid.", "error")
-      //navigate("/");
+      navigate("/");
     }
   }, [session, email, navigate]);
 
