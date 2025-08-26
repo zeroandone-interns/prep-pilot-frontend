@@ -14,6 +14,7 @@ import {
 } from "@mui/material";
 import { Link as LinkIcon } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
+import { useSnackbar } from "@/components/SnackbarProvider";
 import axios from "axios";
 import Dropzone from "react-dropzone";
 
@@ -28,6 +29,7 @@ export default function CreateCoursePage() {
   const [nbOfSections, setNbOfSections] = React.useState<number | "">("");
   const [documents, setDocuments] = React.useState<File[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const {showMessage} = useSnackbar();
 
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
   const token = localStorage.getItem("token");
@@ -42,7 +44,7 @@ export default function CreateCoursePage() {
 
   const handleGenerate = async () => {
     if (!sub) {
-      alert("User not found in localStorage.");
+      showMessage("User not found in localStorage", "error");
       return;
     }
 
@@ -78,7 +80,7 @@ export default function CreateCoursePage() {
         }
       );
 
-      alert("Course created successfully!");
+      showMessage("Course created successfully!", "success");
       const courseId = CreatedCourse.data.id;
 
       if (documents.length > 0) {
@@ -99,17 +101,17 @@ export default function CreateCoursePage() {
           );
 
           console.log("Upload response:", response.data);
-          alert("Files uploaded successfully");
+          showMessage("Files uploaded successfully!", "success");
         } catch (err) {
           console.error(err);
-          alert("Failed to upload files");
+          showMessage("Failed to upload files", "error");
         }
       }
 
       navigate("/admin/courses");
     } catch (err) {
       console.error(err);
-      alert("Failed to create course.");
+      showMessage("Failed to create course.", "error");
     } finally {
       setLoading(false);
     }

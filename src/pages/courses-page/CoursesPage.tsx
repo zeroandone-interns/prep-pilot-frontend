@@ -16,6 +16,7 @@ import axios from "axios";
 export default function CoursesPage() {
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
   const [courses, SetCourses] = useState<
+
     {
       id: number;
       title: string;
@@ -24,6 +25,7 @@ export default function CoursesPage() {
       enrolled: boolean;
       progress: number;
     }[]
+
   >([]);
   const [loading, setLoading] = useState(true);
 
@@ -32,8 +34,10 @@ export default function CoursesPage() {
       try {
         setLoading(true);
 
+
         const sub = localStorage.getItem("sub");
         if (!sub) return console.error("No sub found in localStorage");
+
 
         const userRes = await axios.get(`${BaseUrl}/users/by-sub-db/${sub}`);
         const user = userRes.data;
@@ -57,6 +61,7 @@ export default function CoursesPage() {
         );
 
         SetCourses(coursesWithProgress);
+
       } catch (err) {
         console.error("Failed to fetch courses:", err);
       } finally {
@@ -74,15 +79,18 @@ export default function CoursesPage() {
     children: React.ReactNode;
     enrolled?: boolean;
   }) => (
+
     <Card
       sx={(t) => ({
         position: "relative",
         borderRadius: 3,
+
         border: `1px solid ${
           enrolled
             ? alpha(t.palette.success.main, 0.7)
             : alpha(t.palette.primary.main, 0.18)
         }`,
+
         boxShadow: `0 6px 18px ${alpha("#000", 0.06)}`,
         transition:
           "transform .18s ease, box-shadow .18s ease, border-color .18s ease",
@@ -90,18 +98,22 @@ export default function CoursesPage() {
         "&:hover": {
           transform: "translateY(-3px)",
           boxShadow: `0 12px 26px ${alpha("#000", 0.12)}`,
+
           borderColor: enrolled
             ? t.palette.success.main
             : t.palette.primary.main,
+
         },
       })}
     >
       <Box
         sx={(t) => ({
           height: 4,
+
           background: enrolled
             ? t.palette.success.main
             : `linear-gradient(90deg, ${t.palette.primary.main}, ${t.palette.secondary.main})`,
+
         })}
       />
       {children}
@@ -109,6 +121,7 @@ export default function CoursesPage() {
   );
 
   return (
+
     <Box
       sx={{
         display: "flex",
@@ -145,6 +158,7 @@ export default function CoursesPage() {
                         sx={{ borderRadius: "16px" }}
                       />
                     </Stack>
+
                     <Typography variant="body2" sx={{ mb: 1.25 }}>
                       <Skeleton width="100%" />
                       <Skeleton width="92%" />
@@ -217,6 +231,7 @@ export default function CoursesPage() {
                         size="small"
                       />
                     </Stack>
+
                     <Typography
                       variant="body2"
                       color="text.secondary"
@@ -234,8 +249,10 @@ export default function CoursesPage() {
                   </CardContent>
                 </CardActionArea>
               </CardShell>
+
             </Box>
           ))}
     </Box>
+
   );
 }

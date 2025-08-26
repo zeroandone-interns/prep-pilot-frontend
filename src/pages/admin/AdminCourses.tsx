@@ -17,6 +17,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSnackbar } from "@/components/SnackbarProvider";
 import axios from "axios";
 
 export default function AdminCourses() {
@@ -34,12 +35,13 @@ export default function AdminCourses() {
       nb_of_sections: 0,
     },
   ]);
+  const { showMessage } = useSnackbar();
 
   const sub = localStorage.getItem("sub");
 
   const fetchCourses = async () => {
     if (!sub) {
-      alert("User not found in localStorage.");
+      showMessage("User not found in localStorage", "error");
       return;
     }
 

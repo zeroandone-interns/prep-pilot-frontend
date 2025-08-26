@@ -25,6 +25,7 @@ import {
 } from "@mui/material";
 import { PersonAdd, Delete } from "@mui/icons-material";
 import { useState, useEffect } from "react";
+import { useSnackbar } from "@/components/SnackbarProvider";
 import axios from "axios";
 import Papa from "papaparse";
 
@@ -39,8 +40,12 @@ export default function AdminUsers() {
     email: "",
     role: "learner" as "learner" | "admin",
   });
+
   const [csvUsers, setCsvUsers] = useState<any[]>([]); 
   const [organizationId, setOrganizationId] = useState<number | undefined>();
+
+  const { showMessage } = useSnackbar();
+
   const [users, setUsers] = useState<
     {
       sub: string;
@@ -64,8 +69,10 @@ export default function AdminUsers() {
 
   const fetchUsers = async () => {
     if (!sub) {
-      alert("User not found in localStorage.");
-      setLoading(false);
+
+      showMessage("User not found in localStorage", "error");
+       
+
       return;
     }
 
@@ -123,7 +130,10 @@ export default function AdminUsers() {
           },
         }
       );
-      alert("User was added!");
+
+      console.log(AddedUser);
+      showMessage("User was added!", "success");
+
       fetchUsers();
     } catch (error) {
       console.log(error);

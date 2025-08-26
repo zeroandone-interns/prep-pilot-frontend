@@ -1,11 +1,14 @@
+// src/signin/Signup.tsx
 import { useState } from "react";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
-import { Button, TextField, Typography, Card, Box, Link } from "@mui/material";
+import { Button, IconButton, TextField, Typography, Card, Box, Link, InputAdornment } from "@mui/material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 import "./Signup.css";
 import axios from "axios";
 import { type AppDispatch } from "@/store";
 import { useDispatch } from "react-redux";
 import { setAuth } from "@/store/AuthSlice";
+import { useSnackbar } from "@/components/SnackbarProvider";
 
 export default function Signup() {
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
@@ -13,8 +16,14 @@ export default function Signup() {
   const dispatch = useDispatch<AppDispatch>();
 
   const [email, setEmail] = useState("");
+
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const handleToggle = () => setShowPassword((prev) => !prev);
+
   const [loading, setLoading] = useState(false); // NEW STATE
+
+  const { showMessage } = useSnackbar();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +73,7 @@ export default function Signup() {
       }
     } catch (error: any) {
       if (axios.isAxiosError(error)) {
-        alert(error.response?.data?.message || "Something went wrong");
+        showMessage(error.response?.data?.message || "Something went wrong", "error");
       } else {
         console.error(error);
       }
@@ -110,10 +119,21 @@ export default function Signup() {
               />
               <TextField
                 label="Password"
-                type="password"
+                type={showPassword ? "text" : "password"}
+                variant="outlined"
                 fullWidth
                 margin="normal"
+                value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={handleToggle} edge="end">
+                        {showPassword ? <VisibilityOff /> : <Visibility/>}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
 
               <Box sx={{ textAlign: "right", mt: 0.5 }}>
