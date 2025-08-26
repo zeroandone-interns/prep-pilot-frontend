@@ -52,7 +52,7 @@ export default function AdminUsers() {
     role: "learner" as "learner" | "admin",
   });
 
-  const [csvUsers, setCsvUsers] = useState<any[]>([]);
+
 
   const [organizationId, setOrganizationId] = useState<number | undefined>();
 
