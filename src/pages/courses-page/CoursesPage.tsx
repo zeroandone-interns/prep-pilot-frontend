@@ -7,6 +7,11 @@ import {
   Stack,
   Box,
   Skeleton,
+  TextField,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import { alpha } from "@mui/material/styles";
@@ -15,8 +20,8 @@ import axios from "axios";
 
 export default function CoursesPage() {
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
-  const [courses, SetCourses] = useState<
 
+  const [courses, setCourses] = useState<
     {
       id: number;
       title: string;
@@ -25,24 +30,24 @@ export default function CoursesPage() {
       enrolled: boolean;
       progress: number;
     }[]
-
   >([]);
+
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [enrollFilter, setEnrollFilter] = useState<
+    "all" | "enrolled" | "notEnrolled"
+  >("all");
+  const [sortBy, setSortBy] = useState<"title" | "progress">("title");
 
   useEffect(() => {
     const fetchCourses = async () => {
       try {
         setLoading(true);
-
-
         const sub = localStorage.getItem("sub");
         if (!sub) return console.error("No sub found in localStorage");
 
-
         const userRes = await axios.get(`${BaseUrl}/users/by-sub-db/${sub}`);
-        const user = userRes.data;
-        const userId = user.id;
-
+        const userId = userRes.data.id;
         if (!userId) throw new Error("Missing userId from backend.");
 
         const coursesRes = await axios.get(
@@ -52,7 +57,7 @@ export default function CoursesPage() {
 
         const coursesWithProgress = await Promise.all(
           coursesData.map(async (c: any) => {
-            if (!c.enrolled) return { ...c, progress: 0 }; // not enrolled yet
+            if (!c.enrolled) return { ...c, progress: 0 };
             const progressRes = await axios.get(
               `${BaseUrl}/courses/progress/${userId}/course/${c.id}`
             );
@@ -60,8 +65,7 @@ export default function CoursesPage() {
           })
         );
 
-        SetCourses(coursesWithProgress);
-
+        setCourses(coursesWithProgress);
       } catch (err) {
         console.error("Failed to fetch courses:", err);
       } finally {
@@ -79,18 +83,15 @@ export default function CoursesPage() {
     children: React.ReactNode;
     enrolled?: boolean;
   }) => (
-
     <Card
       sx={(t) => ({
         position: "relative",
         borderRadius: 3,
-
         border: `1px solid ${
           enrolled
             ? alpha(t.palette.success.main, 0.7)
             : alpha(t.palette.primary.main, 0.18)
         }`,
-
         boxShadow: `0 6px 18px ${alpha("#000", 0.06)}`,
         transition:
           "transform .18s ease, box-shadow .18s ease, border-color .18s ease",
@@ -98,46 +99,115 @@ export default function CoursesPage() {
         "&:hover": {
           transform: "translateY(-3px)",
           boxShadow: `0 12px 26px ${alpha("#000", 0.12)}`,
-
           borderColor: enrolled
             ? t.palette.success.main
             : t.palette.primary.main,
-
         },
       })}
     >
       <Box
         sx={(t) => ({
           height: 4,
-
           background: enrolled
             ? t.palette.success.main
             : `linear-gradient(90deg, ${t.palette.primary.main}, ${t.palette.secondary.main})`,
-
         })}
       />
       {children}
     </Card>
   );
 
-  return (
+  const filteredCourses = courses
+    .filter(
+      (c) =>
+        c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.description.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .filter((c) => {
+      if (enrollFilter === "enrolled") return c.enrolled;
+      if (enrollFilter === "notEnrolled") return !c.enrolled;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === "title") return a.title.localeCompare(b.title);
+      if (sortBy === "progress") return b.progress - a.progress;
+      return 0;
+    });
 
+  return (
     <Box
       sx={{
         display: "flex",
-        flexWrap: "wrap",
+        flexDirection: "column",
+        alignItems: "center",
         gap: 2,
-        justifyContent: "center",
+        mt: 3,
       }}
     >
-      {loading
-        ? Array.from({ length: 6 }).map((_, i) => (
+      {/* Search and Filters */}
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: 600,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        <TextField
+          fullWidth
+          variant="outlined"
+          label="Search courses..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+
+        <Stack direction="row" spacing={1}>
+          <Chip
+            label="All"
+            color={enrollFilter === "all" ? "primary" : "default"}
+            onClick={() => setEnrollFilter("all")}
+          />
+          <Chip
+            label="Enrolled"
+            color={enrollFilter === "enrolled" ? "primary" : "default"}
+            onClick={() => setEnrollFilter("enrolled")}
+          />
+          <Chip
+            label="Not Enrolled"
+            color={enrollFilter === "notEnrolled" ? "primary" : "default"}
+            onClick={() => setEnrollFilter("notEnrolled")}
+          />
+        </Stack>
+
+        <FormControl fullWidth>
+          <InputLabel>Sort by</InputLabel>
+          <Select
+            value={sortBy}
+            label="Sort by"
+            onChange={(e) => setSortBy(e.target.value as "title" | "progress")}
+          >
+            <MenuItem value="title">Title</MenuItem>
+            <MenuItem value="progress">Progress</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
+
+      {/* Courses Grid */}
+      <Box
+        sx={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 2,
+          justifyContent: "center",
+        }}
+      >
+        {loading ? (
+          Array.from({ length: 6 }).map((_, i) => (
             <Box
               key={`skeleton-${i}`}
-              sx={{
-                flex: "1 1 300px",
-                maxWidth: 350,
-              }}
+              sx={{ flex: "1 1 300px", maxWidth: 350 }}
             >
               <CardShell>
                 <CardActionArea>
@@ -158,7 +228,6 @@ export default function CoursesPage() {
                         sx={{ borderRadius: "16px" }}
                       />
                     </Stack>
-
                     <Typography variant="body2" sx={{ mb: 1.25 }}>
                       <Skeleton width="100%" />
                       <Skeleton width="92%" />
@@ -172,14 +241,9 @@ export default function CoursesPage() {
               </CardShell>
             </Box>
           ))
-        : courses.map((c) => (
-            <Box
-              key={c.id}
-              sx={{
-                flex: "1 1 300px", // responsive width, min 300px
-                maxWidth: 350,
-              }}
-            >
+        ) : filteredCourses.length > 0 ? (
+          filteredCourses.map((c) => (
+            <Box key={c.id} sx={{ flex: "1 1 300px", maxWidth: 350 }}>
               <CardShell enrolled={c.enrolled}>
                 {c.enrolled && (
                   <>
@@ -187,7 +251,7 @@ export default function CoursesPage() {
                       sx={{
                         height: 6,
                         borderRadius: 3,
-                        background: "#e0e0e0", // light gray for empty part
+                        background: "#e0e0e0",
                         overflow: "hidden",
                         mb: 1,
                       }}
@@ -231,7 +295,6 @@ export default function CoursesPage() {
                         size="small"
                       />
                     </Stack>
-
                     <Typography
                       variant="body2"
                       color="text.secondary"
@@ -239,20 +302,28 @@ export default function CoursesPage() {
                     >
                       {c.description}
                     </Typography>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ mb: 1.2 }}
-                    >
-                      {c.level}
-                    </Typography>
+                    <Chip
+                      label={c.level}
+                      color={
+                        c.level.toLowerCase() === "beginner"
+                          ? "success"
+                          : c.level.toLowerCase() === "intermediate"
+                          ? "warning"
+                          : "error"
+                      }
+                      size="small"
+                    />
                   </CardContent>
                 </CardActionArea>
               </CardShell>
-
             </Box>
-          ))}
+          ))
+        ) : (
+          <Typography variant="h6" color="text.secondary" sx={{ mt: 4 }}>
+            No courses found.
+          </Typography>
+        )}
+      </Box>
     </Box>
-
   );
 }

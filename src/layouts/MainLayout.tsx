@@ -124,14 +124,13 @@ export default function MainLayout() {
           {groups?.includes("instructor") && (
             <Button
               color="inherit"
-              variant={"outlined"}
+              variant="outlined"
               onClick={() => {
-                setShowLearnerView((prev) => !prev);
-                if (showLearnerView) {
-                  navigate("/courses");
-                } else {
-                  navigate("/admin/courses");
-                }
+                setShowLearnerView((prev) => {
+                  const next = !prev;
+                  navigate(next ? "/courses" : "/admin/courses");
+                  return next;
+                });
               }}
               sx={{ mr: 1 }}
             >
