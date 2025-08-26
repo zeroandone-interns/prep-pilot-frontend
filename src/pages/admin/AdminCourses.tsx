@@ -10,7 +10,8 @@ import {
   IconButton,
   Typography,
   Tooltip,
-  Button
+  Button,
+  Skeleton,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -23,19 +24,20 @@ import axios from "axios";
 export default function AdminCourses() {
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
   const navigate = useNavigate();
-
-  const [courses, setCourses] = useState([
-    {
-      id: 0,
-      title: "",
-      description: "",
-      level: "",
-      duration: "",
-      nb_of_modules: 0,
-      nb_of_sections: 0,
-    },
-  ]);
   const { showMessage } = useSnackbar();
+
+  const [courses, setCourses] = useState<
+    {
+      id: number;
+      title: string;
+      description: string;
+      level: string;
+      duration: string;
+      nb_of_modules: number;
+      nb_of_sections: number;
+    }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
 
   const sub = localStorage.getItem("sub");
 
@@ -46,6 +48,7 @@ export default function AdminCourses() {
     }
 
     try {
+      setLoading(true); // start loading
       const userRes = await axios.get(`${BaseUrl}/users/by-sub-db/${sub}`);
       const user = userRes.data;
       const { id: userId, organization_id: organizationId } = user;
@@ -60,6 +63,8 @@ export default function AdminCourses() {
       setCourses(coursesResult.data);
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false); // stop loading
     }
   };
 
@@ -103,32 +108,55 @@ export default function AdminCourses() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {courses.map((c) => (
-              <TableRow key={c.id} hover>
-                <TableCell>{c.title}</TableCell>
-                <TableCell>{c.description}</TableCell>
-                <TableCell>{c.level}</TableCell>
-                <TableCell>{c.duration}</TableCell>
-                <TableCell>{c.nb_of_modules}</TableCell>
-                <TableCell>{c.nb_of_sections}</TableCell>
-                <TableCell align="right">
-                  <Tooltip title="View Course">
-                    <IconButton
-                      color="primary"
-                      onClick={() => handleViewCourse(c.id)}
-                    >
-                      <VisibilityIcon />
-                    </IconButton>
-                  </Tooltip>
+            {loading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <TableRow key={`skeleton-${i}`}>
+                  {Array.from({ length: 7 }).map((__, j) => (
+                    <TableCell key={j}>
+                      <Skeleton
+                        variant={j === 6 ? "circular" : "text"}
+                        width={j === 6 ? 40 : "80%"}
+                      />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : courses.length > 0 ? (
+              courses.map((c) => (
+                <TableRow key={c.id} hover>
+                  <TableCell>{c.title}</TableCell>
+                  <TableCell>{c.description}</TableCell>
+                  <TableCell>{c.level}</TableCell>
+                  <TableCell>{c.duration}</TableCell>
+                  <TableCell>{c.nb_of_modules}</TableCell>
+                  <TableCell>{c.nb_of_sections}</TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="View Course">
+                      <IconButton
+                        color="primary"
+                        onClick={() => handleViewCourse(c.id)}
+                      >
+                        <VisibilityIcon />
+                      </IconButton>
+                    </Tooltip>
 
-                  <Tooltip title="Delete Course">
-                    <IconButton color="error">
-                      <DeleteIcon />
-                    </IconButton>
-                  </Tooltip>
+                    <Tooltip title="Delete Course">
+                      <IconButton color="error">
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={7} align="center">
+                  <Typography variant="body2" color="text.secondary">
+                    No courses found.
+                  </Typography>
                 </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </TableContainer>

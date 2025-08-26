@@ -24,13 +24,24 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { PersonAdd, Delete } from "@mui/icons-material";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSnackbar } from "@/components/SnackbarProvider";
 import axios from "axios";
 import Papa from "papaparse";
+import { useDropzone } from "react-dropzone";
+
+
+interface CsvUser {
+  FirstName: string;
+  LastName: string;
+  email: string;
+  role: string;
+}
+
 
 export default function AdminUsers() {
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
+
 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -41,7 +52,6 @@ export default function AdminUsers() {
     role: "learner" as "learner" | "admin",
   });
 
-  const [csvUsers, setCsvUsers] = useState<any[]>([]); 
   const [organizationId, setOrganizationId] = useState<number | undefined>();
 
   const { showMessage } = useSnackbar();
@@ -55,8 +65,16 @@ export default function AdminUsers() {
       role: string;
     }[]
   >([]);
+const [csvUsers, setCsvUsers] = useState<CsvUser[]>([]);
+
 
   const sub = localStorage.getItem("sub");
+  // remove one row locally
+const handleRemoveCsvUser = (index: number) => {
+  setCsvUsers((prev) => prev.filter((_, i) => i !== index));
+};
+
+
 
   const handleDelete = async (sub: string) => {
     try {
@@ -69,10 +87,7 @@ export default function AdminUsers() {
 
   const fetchUsers = async () => {
     if (!sub) {
-
       showMessage("User not found in localStorage", "error");
-       
-
       return;
     }
 
@@ -113,49 +128,30 @@ export default function AdminUsers() {
     fetchUsers();
   }, []);
 
-  const handleAddUser = async () => {
-    try {
-      await axios.post(
-        `${BaseUrl}/users/admin-create`,
-        {
-          firstName: addForm.firstName,
-          lastName: addForm.lastName,
-          role: addForm.role,
-          email: addForm.email,
-          organizationId,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      console.log(AddedUser);
-      showMessage("User was added!", "success");
-
-      fetchUsers();
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        console.log("Parsed CSV:", results.data);
-        setCsvUsers(results.data);
+const handleAddUser = async () => {
+  try {
+    await axios.post(
+      `${BaseUrl}/users/admin-create`,
+      {
+        firstName: addForm.firstName,
+        lastName: addForm.lastName,
+        role: addForm.role,
+        email: addForm.email,
+        organizationId,
       },
-      error: (err) => {
-        console.error("CSV parsing error:", err);
-      },
-    });
-  };
+      { headers: { "Content-Type": "application/json" } }
+    );
+
+    showMessage("User was added!", "success");
+    fetchUsers();
+  } catch (error: any) {
+    console.log(error);
+
+      const msg = error.response?.data?.message;
+      showMessage(msg || "Failed to add user", "error");
+  }
+};
+
 
   const handleBulkAddUsers = async () => {
     if (!csvUsers.length) return;
@@ -169,13 +165,51 @@ export default function AdminUsers() {
           organizationId,
         });
       }
-      alert("Users from CSV were added!");
+      showMessage("Users from CSV were added!","success");
       fetchUsers();
       setCsvUsers([]);
-    } catch (err) {
+    } catch (err:any) {
       console.error("Bulk add failed:", err);
+       const msg = err.response?.data?.message;
+       showMessage(msg || "Failed to add user", "error");
     }
   };
+
+ const onDrop = useCallback((acceptedFiles: File[]) => {
+   const file = acceptedFiles[0];
+   if (!file) return;
+
+   Papa.parse<CsvUser>(file, {
+     header: true,
+     skipEmptyLines: true,
+     complete: (results) => {
+       console.log("Parsed CSV:", results.data);
+
+       // Filter invalid/empty rows and normalize role
+       const cleaned = results.data
+         .filter(
+           (row): row is CsvUser =>
+             !!row.FirstName && !!row.LastName && !!row.email
+         )
+         .map((row) => ({
+           ...row,
+           role: row.role?.toLowerCase() || "learner",
+         }));
+
+       setCsvUsers(cleaned);
+       console.log(csvUsers);
+     },
+     error: (err) => {
+       console.error("CSV parsing error:", err);
+     },
+   });
+ }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { "text/csv": [".csv"] },
+    multiple: false,
+  });
 
   if (loading) {
     return (
@@ -240,14 +274,20 @@ export default function AdminUsers() {
         </Table>
       </TableContainer>
 
-      <Dialog open={open} onClose={() => setOpen(false)}>
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Add User</DialogTitle>
         <DialogContent
           sx={{
             pt: 2,
             display: "grid",
             gap: 2,
-            minWidth: { xs: 320, sm: 420 },
+            maxHeight: "60vh", 
+            overflowY: "auto", 
           }}
         >
           <TextField
@@ -289,13 +329,67 @@ export default function AdminUsers() {
           </FormControl>
 
           <Typography variant="subtitle1">Or upload CSV</Typography>
-          <input type="file" accept=".csv" onChange={handleCsvUpload} />
-          {csvUsers.length > 0 && (
-            <Typography variant="body2">
-              {csvUsers.length} users parsed from CSV
+          <Box
+            {...getRootProps()}
+            sx={{
+              p: 2,
+              border: "2px dashed gray",
+              textAlign: "center",
+              cursor: "pointer",
+              bgcolor: isDragActive ? "action.hover" : "background.paper",
+            }}
+          >
+            <input {...getInputProps()} />
+            <Typography>
+              {isDragActive
+                ? "Drop the CSV here…"
+                : "Drag & drop a CSV or click to upload"}
             </Typography>
+          </Box>
+
+          {/* CSV preview table */}
+          {csvUsers.length > 0 && (
+            <TableContainer
+              component={Paper}
+              sx={{
+                maxHeight: 250,
+                overflow: "auto", // enable scrollbars
+              }}
+            >
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>First Name</TableCell>
+                    <TableCell>Last Name</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Role</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {csvUsers.map((row, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>{row.FirstName}</TableCell>
+                      <TableCell>{row.LastName}</TableCell>
+                      <TableCell>{row.email}</TableCell>
+                      <TableCell>{row.role}</TableCell>
+
+                      <TableCell align="right">
+                        <IconButton
+                          color="error"
+                          onClick={() => handleRemoveCsvUser(idx)}
+                        >
+                          <Delete />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
         </DialogContent>
+
         <DialogActions>
           <Button onClick={() => setOpen(false)}>Cancel</Button>
           <Button
