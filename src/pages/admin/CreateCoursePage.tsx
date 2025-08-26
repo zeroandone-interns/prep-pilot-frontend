@@ -170,7 +170,7 @@ export default function CreateCoursePage() {
                   }
                 }}
                 onKeyDown={(e) => {
-                  if (["-", "e"].includes(e.key)) {
+                  if (["-", "e", "."].includes(e.key)) {
                     e.preventDefault();
                   }
                 }}
@@ -185,7 +185,6 @@ export default function CreateCoursePage() {
                 onChange={(e) => setDurationUnit(e.target.value)}
                 sx={{ minWidth: 120 }}
               >
-                <MenuItem value="">N/A</MenuItem>
                 <MenuItem value="minutes">Minutes</MenuItem>
                 <MenuItem value="hours">Hours</MenuItem>
                 <MenuItem value="days">Days</MenuItem>
@@ -206,11 +205,19 @@ export default function CreateCoursePage() {
                   return;
                 }
                 if (/^[0-9]+$/.test(val)) {
-                  setNbOfModules(Number(val));
+                  const num = Number(val);
+                  if (num >= 1 && num <= 5) {
+                    setNbOfModules(Number(val));
+                  }
+                  else {
+                    if (e.nativeEvent instanceof InputEvent && e.nativeEvent.isComposing === false) {
+                      showMessage("PrepPilot can only handle 1 to 5 modules", "warning");
+                    }
+                  }
                 }
               }}
               onKeyDown={(e) => {
-                if (["-", "e"].includes(e.key)) {
+                if (["-", "e", "."].includes(e.key)) {
                   e.preventDefault();
                 }
               }}
@@ -227,11 +234,19 @@ export default function CreateCoursePage() {
                   return;
                 }
                 if (/^[0-9]+$/.test(val)) {
-                  setNbOfSections(Number(val));
+                  const num = Number(val);
+                  if (num >= 1 && num <= 5) {
+                    setNbOfSections(Number(val));
+                  }
+                  else {
+                    if (e.nativeEvent instanceof InputEvent && e.nativeEvent.isComposing === false) {
+                      showMessage("PrepPilot can only handle 1 to 5 sections", "warning");
+                    }
+                  }
                 }
               }}
               onKeyDown={(e) => {
-                if (["-", "e"].includes(e.key)) {
+                if (["-", "e", "."].includes(e.key)) {
                   e.preventDefault();
                 }
               }}
