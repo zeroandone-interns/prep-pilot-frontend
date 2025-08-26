@@ -219,11 +219,11 @@ export default function OrganizationsPage() {
         prev.map((o) =>
           o.id === editOrg.id
             ? {
-                id: data.id,
-                name: data.name,
-                usersCount: data.usersCount,
-                coursesCount: data.coursesCount,
-              }
+              id: data.id,
+              name: data.name,
+              usersCount: data.usersCount,
+              coursesCount: data.coursesCount,
+            }
             : o
         )
       );
@@ -556,54 +556,61 @@ export default function OrganizationsPage() {
         </DialogTitle>
         <DialogContent dividers sx={{ display: "grid", gap: 2 }}>
           {/* Add Instructor (Email + First/Last) */}
-          <Typography variant="subtitle1">Add Instructor</Typography>
-          <Grid container spacing={1}>
-            <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <TextField
-                fullWidth
-                label="First name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-              />
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <TextField
-                fullWidth
-                label="Last name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-              />
-            </Grid>
-            <Grid
-              item
-              xs={12}
-              md={2}
-              sx={{ display: "flex", alignItems: "stretch" }}
-            >
-              <Button
-                fullWidth
-                variant="contained"
-                onClick={createInstructorInline}
-                disabled={
-                  creatingInstructor ||
-                  !email.trim() ||
-                  !firstName.trim() ||
-                  !lastName.trim()
-                }
-              >
-                {creatingInstructor ? "Creating…" : "Add"}
-              </Button>
-            </Grid>
-          </Grid>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              minHeight: 200, // adjust depending on how much vertical space you want
+            }}
+          >
+            <Box sx={{ maxWidth: 800, width: "100%" }}>
+              <Typography variant="subtitle1" align="center" sx={{ mb: 2 }}>Add Instructor</Typography>
+              <Grid container spacing={1} justifyContent="center">
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="First name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Last name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    onClick={createInstructorInline}
+                    disabled={
+                      creatingInstructor ||
+                      !email.trim() ||
+                      !firstName.trim() ||
+                      !lastName.trim()
+                    }
+                    sx={{ width: "100%", minWidth: 300 }}
+                  >
+                    {creatingInstructor ? "Creating…" : "Add"}
+                  </Button>
+                </Grid>
+              </Grid>
+            </Box>
+          </Box>
 
           <Divider />
 

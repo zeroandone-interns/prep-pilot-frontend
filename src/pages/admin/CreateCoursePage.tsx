@@ -11,6 +11,7 @@ import {
   Divider,
   Chip,
   Paper,
+  MenuItem
 } from "@mui/material";
 import { Link as LinkIcon } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
@@ -24,12 +25,13 @@ export default function CreateCoursePage() {
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [level, setLevel] = React.useState("");
-  const [duration, setDuration] = React.useState("");
+  const [durationValue, setDurationValue] = React.useState<number | "">("");
+  const [durationUnit, setDurationUnit] = React.useState("hours");
   const [nbOfModules, setNbOfModules] = React.useState<number | "">("");
   const [nbOfSections, setNbOfSections] = React.useState<number | "">("");
   const [documents, setDocuments] = React.useState<File[]>([]);
   const [loading, setLoading] = React.useState(false);
-  const {showMessage} = useSnackbar();
+  const { showMessage } = useSnackbar();
 
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
   const token = localStorage.getItem("token");
@@ -66,7 +68,7 @@ export default function CreateCoursePage() {
           title,
           description,
           level,
-          duration,
+          duration: `${durationValue} ${durationUnit}`,
           nb_of_modules: nbOfModules,
           nb_of_sections: nbOfSections,
           createdById: userId,
@@ -142,33 +144,113 @@ export default function CreateCoursePage() {
             />
             <TextField
               label="Level"
+              select
               value={level}
               onChange={(e) => setLevel(e.target.value)}
-            />
-            <TextField
-              label="Duration"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-            />
+            >
+              <MenuItem value="">N/A</MenuItem>
+              <MenuItem value="Beginner">Beginner</MenuItem>
+              <MenuItem value="Intermediate">Intermediate</MenuItem>
+              <MenuItem value="Advanced">Advanced</MenuItem>
+            </TextField>
+
+            <Box display="flex" gap={2}>
+              <TextField
+                label="Duration"
+                type="number"
+                value={durationValue}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "") {
+                    setDurationValue("");
+                    return;
+                  }
+                  if (/^[0-9]+$/.test(val)) {
+                    setDurationValue(Number(val));
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (["-", "e", "."].includes(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
+                InputProps={{ inputProps: { min: 1, step: 1 } }}
+              />
+
+
+              <TextField
+                select
+                label="Unit"
+                value={durationUnit}
+                onChange={(e) => setDurationUnit(e.target.value)}
+                sx={{ minWidth: 120 }}
+              >
+                <MenuItem value="minutes">Minutes</MenuItem>
+                <MenuItem value="hours">Hours</MenuItem>
+                <MenuItem value="days">Days</MenuItem>
+                <MenuItem value="weeks">Weeks</MenuItem>
+                <MenuItem value="months">Months</MenuItem>
+              </TextField>
+            </Box>
+
+
             <TextField
               label="Number of Modules"
               type="number"
               value={nbOfModules}
-              onChange={(e) =>
-                setNbOfModules(
-                  e.target.value === "" ? "" : Number(e.target.value)
-                )
-              }
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "") {
+                  setNbOfModules("");
+                  return;
+                }
+                if (/^[0-9]+$/.test(val)) {
+                  const num = Number(val);
+                  if (num >= 1 && num <= 5) {
+                    setNbOfModules(Number(val));
+                  }
+                  else {
+                    if (e.nativeEvent instanceof InputEvent && e.nativeEvent.isComposing === false) {
+                      showMessage("PrepPilot can only handle 1 to 5 modules", "warning");
+                    }
+                  }
+                }
+              }}
+              onKeyDown={(e) => {
+                if (["-", "e", "."].includes(e.key)) {
+                  e.preventDefault();
+                }
+              }}
+              InputProps={{ inputProps: { min: 1, step: 1 } }}
             />
             <TextField
               label="Number of Sections"
               type="number"
               value={nbOfSections}
-              onChange={(e) =>
-                setNbOfSections(
-                  e.target.value === "" ? "" : Number(e.target.value)
-                )
-              }
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "") {
+                  setNbOfSections("");
+                  return;
+                }
+                if (/^[0-9]+$/.test(val)) {
+                  const num = Number(val);
+                  if (num >= 1 && num <= 5) {
+                    setNbOfSections(Number(val));
+                  }
+                  else {
+                    if (e.nativeEvent instanceof InputEvent && e.nativeEvent.isComposing === false) {
+                      showMessage("PrepPilot can only handle 1 to 5 sections", "warning");
+                    }
+                  }
+                }
+              }}
+              onKeyDown={(e) => {
+                if (["-", "e", "."].includes(e.key)) {
+                  e.preventDefault();
+                }
+              }}
+              InputProps={{ inputProps: { min: 1, step: 1 } }}
             />
 
             <Divider textAlign="left">

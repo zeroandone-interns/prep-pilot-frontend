@@ -81,34 +81,34 @@ export default function AdminViewCourse() {
 
 
 
-const handleSave = async () => {
-  setConfirmOpen(true);
-};
+  const handleSave = async () => {
+    setConfirmOpen(true);
+  };
 
-const handleConfirmSave = async () => {
-  try {
-    setLoading(true);
+  const handleConfirmSave = async () => {
+    try {
+      setLoading(true);
 
-    // 1. update course fields
-    await axios.put(`${BaseUrl}/courses/${courseId}`, formData, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+      // 1. update course fields
+      await axios.put(`${BaseUrl}/courses/${courseId}`, formData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    // 2. delete pending documents
-if (pendingDeletes.length > 0) {
-  for (const docId of pendingDeletes) {
-    await axios.delete(`${BaseUrl}/courses/documents/${docId}`);
-  }
-}
+      // 2. delete pending documents
+      if (pendingDeletes.length > 0) {
+        for (const docId of pendingDeletes) {
+          await axios.delete(`${BaseUrl}/courses/documents/${docId}`);
+        }
+      }
 
-    // 3. upload new docs if any
-    if (newDocs.length > 0) {
-      const form = new FormData();
-      newDocs.forEach((file) => form.append("files", file));
-      await axios.post(`${BaseUrl}/courses/upload/${courseId}`, form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      }); 
-    }/*else {  //else we need to call the ai generate course endpoint (if no new documents are uploaded)
+      // 3. upload new docs if any
+      if (newDocs.length > 0) {
+        const form = new FormData();
+        newDocs.forEach((file) => form.append("files", file));
+        await axios.post(`${BaseUrl}/courses/upload/${courseId}`, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+      }/*else {  //else we need to call the ai generate course endpoint (if no new documents are uploaded)
          const generateCourse = await axios.post(
            `${AIUrl}/generate_content`,
            {
@@ -117,19 +117,19 @@ if (pendingDeletes.length > 0) {
          );
     }*/
 
-    // 4. refresh course
-    const res = await axios.get(`${BaseUrl}/courses/details/${courseId}`);
-    setCourse(res.data);
-    setEditMode(false);
-    setNewDocs([]);
-    setPendingDeletes([]);
-  } catch (err) {
-    console.error("Failed to save changes:", err);
-  } finally {
-    setLoading(false);
-    setConfirmOpen(false);
-  }
-};
+      // 4. refresh course
+      const res = await axios.get(`${BaseUrl}/courses/details/${courseId}`);
+      setCourse(res.data);
+      setEditMode(false);
+      setNewDocs([]);
+      setPendingDeletes([]);
+    } catch (err) {
+      console.error("Failed to save changes:", err);
+    } finally {
+      setLoading(false);
+      setConfirmOpen(false);
+    }
+  };
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setNewDocs((prev) => [...prev, ...acceptedFiles]);
