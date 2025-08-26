@@ -121,6 +121,7 @@ export default function EmailVerification() {
                                     onChange={handleEmailChange}
                                     autoComplete="off"
                                 />
+
                                 <Button
                                     variant="contained"
                                     color="primary"

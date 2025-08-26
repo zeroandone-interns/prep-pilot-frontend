@@ -5,13 +5,16 @@ import { useNavigate } from "react-router-dom";
 import { useSnackbar } from "@/components/SnackbarProvider";
 import {
   Button,
+  IconButton,
   TextField,
   Typography,
   Card,
   CardContent,
   CardHeader,
   Box,
+  InputAdornment
 } from "@mui/material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 import "./Signup.css";
 import axios from "axios";
 import { useSelector } from "react-redux";
@@ -22,8 +25,10 @@ export default function CreatePassword() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [confirmError, setConfirmError] = useState("");
   const [loading, setLoading] = useState(false);
+  const handleToggle = () => setShowPassword((prev) => !prev);
   const navigate = useNavigate();
   const session = useSelector((state: RootState) => state.Auth.session);
   const email = useSelector((state: RootState) => state.Auth.email);
@@ -32,7 +37,8 @@ export default function CreatePassword() {
 
   useEffect(() => {
     if (!session || !email) {
-      navigate("/");
+      showMessage("Your session has expired or your email is invalid.", "error")
+      //navigate("/");
     }
   }, [session, email, navigate]);
 
@@ -122,7 +128,7 @@ export default function CreatePassword() {
           <form onSubmit={handleSubmit}>
             <TextField
               label="Set New Password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               required
               fullWidth
               variant="outlined"
@@ -132,6 +138,15 @@ export default function CreatePassword() {
               error={!!passwordError}
               helperText={passwordError}
               autoComplete="new-password"
+              InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={handleToggle} edge="end">
+                        {showPassword ? <VisibilityOff /> : <Visibility/>}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
             />
             <TextField
               label="Confirm Password"
