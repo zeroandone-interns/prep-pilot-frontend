@@ -67,7 +67,7 @@ export default function AdminUsers() {
       role: string;
     }[]
   >([]);
-const [csvUsers, setCsvUsers] = useState<CsvUser[]>([]);
+
 
 
   const sub = localStorage.getItem("sub");
