@@ -118,7 +118,6 @@ export default function MainLayout() {
           />
 
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            PrepPilot
           </Typography>
 
           {/* Learner Experience toggle (only for instructors) */}

@@ -52,6 +52,8 @@ export default function AdminUsers() {
     role: "learner" as "learner" | "admin",
   });
 
+  const [csvUsers, setCsvUsers] = useState<any[]>([]);
+
   const [organizationId, setOrganizationId] = useState<number | undefined>();
 
   const { showMessage } = useSnackbar();
@@ -88,6 +90,7 @@ const handleRemoveCsvUser = (index: number) => {
   const fetchUsers = async () => {
     if (!sub) {
       showMessage("User not found in localStorage", "error");
+
       return;
     }
 
@@ -283,7 +286,7 @@ const handleAddUser = async () => {
         <DialogTitle>Add User</DialogTitle>
         <DialogContent
           sx={{
-            pt: 2,
+            pt: '20px !important',
             display: "grid",
             gap: 2,
             maxHeight: "60vh", 
