@@ -39,7 +39,7 @@ export default function AdminUsers() {
     email: "",
     role: "learner" as "learner" | "admin",
   });
-  const [csvUsers, setCsvUsers] = useState<any[]>([]); // <--- parsed CSV users
+  const [csvUsers, setCsvUsers] = useState<any[]>([]); 
   const [organizationId, setOrganizationId] = useState<number | undefined>();
   const [users, setUsers] = useState<
     {
@@ -152,7 +152,7 @@ export default function AdminUsers() {
     try {
       for (const u of csvUsers) {
         await axios.post(`${BaseUrl}/users/admin-create`, {
-          firstName: u["First Name"],
+          firstName: u["FirstName"],
           lastName: u["LastName"],
           email: u["email"],
           role: u["role"] || "learner",
