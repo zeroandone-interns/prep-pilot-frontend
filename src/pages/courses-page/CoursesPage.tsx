@@ -1,3 +1,4 @@
+// src/pages/courses-page/CoursesPage.tsx
 import {
   Card,
   CardActionArea,

@@ -1,4 +1,3 @@
-// src/pages/chatbot-page/Chatbot.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
@@ -21,6 +20,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  Skeleton,
 } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
 import {
@@ -38,12 +38,12 @@ import "./Chatbot.css";
 import { chatApi, type ChatMessageDTO, type ChatSessionDTO } from "./chatApi";
 
 type Msg = {
-  id: number | string; // temp ids are strings like "tmp-123"
+  id: number | string;
   content: string;
   isBot: boolean;
   ts: string;
-  saving?: boolean; // show spinner until persisted
-  temp?: boolean; // local placeholder
+  saving?: boolean; // show skeleton while saving to DB
+  temp?: boolean;
 };
 
 type LocalChat = {
@@ -73,12 +73,14 @@ export default function Chatbot() {
   const [titleDraft, setTitleDraft] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const [busy, setBusy] = useState(false); // disable input while both user+assistant save
-  const [confirmOpen, setConfirmOpen] = useState(false); // delete dialog
+  const [busy, setBusy] = useState(false);                // disable input while saving
+  const [confirmOpen, setConfirmOpen] = useState(false);  // delete dialog
+  const [messagesLoading, setMessagesLoading] = useState(false); // skeleton when fetching a session's msgs
+  const [sessionsLoading, setSessionsLoading] = useState(false); // skeleton in sidebar while sessions load
+  const [bootLoading, setBootLoading] = useState(false);          // ⬅️ NEW: skeleton right after "New Chat"
 
   const messagesRef = useRef<HTMLDivElement | null>(null);
 
-  // Bot icon (preserve design)
   const BotIcon = ({ size = 20 }: { size?: number }) => (
     <Box
       component="img"
@@ -88,12 +90,34 @@ export default function Chatbot() {
     />
   );
 
+  function BubbleSkeleton({ isBot }: { isBot: boolean }) {
+    return (
+      <Box className={`chat-message ${isBot ? "bot" : "user"}`}>
+        <Box sx={{ mt: 0.5 }}>
+          {isBot ? <BotIcon size={30} /> : <Person fontSize="small" />}
+        </Box>
+        <Box sx={{ maxWidth: "85%" }}>
+          <Skeleton
+            variant="rounded"
+            height={56}
+            sx={{
+              borderRadius: 3,
+              width: `${Math.floor(40 + Math.random() * 40)}%`,
+            }}
+          />
+          <Skeleton width={80} sx={{ mt: 0.5 }} />
+        </Box>
+      </Box>
+    );
+  }
+
   const chat = useMemo(() => (curId ? chats[curId] : undefined), [curId, chats]);
 
-  // Load sessions at mount
+  // Load sessions on mount
   useEffect(() => {
     const load = async () => {
       try {
+        setSessionsLoading(true);
         const data = await chatApi.getSessions();
         setSessions(data);
         if (data.length && curId === null) {
@@ -101,16 +125,20 @@ export default function Chatbot() {
         }
       } catch (e) {
         console.error(e);
+      } finally {
+        setSessionsLoading(false);
       }
     };
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load messages for current session
+  // Load messages when switching sessions
   useEffect(() => {
     const loadMsgs = async () => {
       if (!curId) return;
       if (!chats[curId]) {
+        setMessagesLoading(true);
         try {
           const msgs = await chatApi.getMessages(curId);
           const derived = deriveTitleFromMessages(msgs);
@@ -129,6 +157,8 @@ export default function Chatbot() {
           if (derived) setSessionTitles((t) => ({ ...t, [curId]: derived }));
         } catch (e) {
           console.error(e);
+        } finally {
+          setMessagesLoading(false);
         }
       }
     };
@@ -136,7 +166,7 @@ export default function Chatbot() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curId]);
 
-  // Auto-scroll on new messages
+  // Auto-scroll when msg count changes
   useEffect(() => {
     const el = messagesRef.current;
     if (!el) return;
@@ -159,7 +189,6 @@ export default function Chatbot() {
   const deriveTitleFromMessages = (msgs: ChatMessageDTO[]) => {
     const firstUser = msgs.find((m) => m.sender === "user");
     return firstUser ? truncate(firstUser.message) : "";
-    // Keep titles client-only to avoid schema changes
   };
 
   const latestTs = (msgs: ChatMessageDTO[]) =>
@@ -172,8 +201,9 @@ export default function Chatbot() {
     ts: m.created_at,
   });
 
-  // Create new session
+  // Create new session (show skeleton immediately under brand-new chat)
   const create = async () => {
+    setBootLoading(true); // ⬅️ show bubbles under the empty new chat
     try {
       const s = await chatApi.createSession();
       setSessions((arr) => [s, ...arr]);
@@ -192,6 +222,9 @@ export default function Chatbot() {
       setTitleDraft("New Chat");
     } catch (err) {
       console.error("Failed to create chat session", err);
+    } finally {
+      // keep it snappy but visible
+      setTimeout(() => setBootLoading(false), 400);
     }
   };
 
@@ -202,13 +235,11 @@ export default function Chatbot() {
     if (!curId) return;
     try {
       await chatApi.deleteSession(curId);
-      // prune local state
       setSessions((list) => list.filter((s) => s.id !== curId));
       setChats((prev) => {
         const { [curId]: _, ...rest } = prev;
         return rest;
       });
-      // pick another session if available
       const remaining = sessions.filter((s) => s.id !== curId);
       setCurId(remaining[0]?.id ?? null);
     } catch (e) {
@@ -216,14 +247,13 @@ export default function Chatbot() {
     }
   };
 
-  // Send message with per-message loading + auto assistant reply ("Hi 👋")
+  // Send message (use skeleton while saving)
   const send = async () => {
     if (!input.trim() || !curId || busy) return;
     const content = input.trim();
     setInput("");
     setBusy(true);
 
-    // 1) Add local temp user bubble
     const userTempId = mkTempId();
     addLocal(curId, {
       id: userTempId,
@@ -234,12 +264,10 @@ export default function Chatbot() {
       temp: true,
     });
 
-    // 2) Persist user message
     try {
       const savedUser = await chatApi.sendMessage(curId, content, "user");
       replaceTemp(curId, userTempId, savedUser);
 
-      // Update title if it was "New Chat"
       setChats((prev) => {
         const c = prev[curId]!;
         const nextTitle =
@@ -263,19 +291,18 @@ export default function Chatbot() {
       return;
     }
 
-    // 3) Add local temp assistant "typing…" bubble
-    const assistantText = "Hi 👋"; // frontend-generated reply
+    // Frontend-generated reply
+    const assistantText = "Hi 👋";
     const botTempId = mkTempId();
     addLocal(curId, {
       id: botTempId,
-      content: "…",
+      content: assistantText,
       isBot: true,
       ts: nowIso(),
       saving: true,
       temp: true,
     });
 
-    // 4) Persist assistant reply
     try {
       const savedBot = await chatApi.sendMessage(curId, assistantText, "assistant");
       replaceTemp(curId, botTempId, savedBot);
@@ -287,7 +314,7 @@ export default function Chatbot() {
     }
   };
 
-  // Helpers to manage local temp -> saved swap
+  // Local helpers
   const addLocal = (chatId: number, msg: Msg) => {
     setChats((prev) => {
       const c = prev[chatId] || {
@@ -336,7 +363,6 @@ export default function Chatbot() {
     });
   };
 
-  // Save edited title (client-only)
   const saveTitle = () => {
     if (!curId) return;
     const t = titleDraft.trim() || "New Chat";
@@ -348,13 +374,13 @@ export default function Chatbot() {
     setEditing(false);
   };
 
-  // Switch session
   const selectChat = async (sessionId: number) => {
     if (sessionId === curId) return;
     setCurId(sessionId);
     setEditing(false);
     setDrawerOpen(false);
     if (!chats[sessionId]) {
+      setMessagesLoading(true);
       try {
         const msgs = await chatApi.getMessages(sessionId);
         const derived = deriveTitleFromMessages(msgs);
@@ -373,12 +399,14 @@ export default function Chatbot() {
         if (derived) setSessionTitles((t) => ({ ...t, [sessionId]: derived }));
       } catch (e) {
         console.error(e);
+      } finally {
+        setMessagesLoading(false);
       }
     }
   };
 
+  // First-time / no sessions yet
   if (!curId && !sessions.length) {
-    // First-time blank slate
     return (
       <Box className="chat-container" style={{ height: `calc(100dvh - ${APPBAR_H}px)` }}>
         <Stack direction={{ xs: "column", md: "row" }} className="chat-stack">
@@ -415,7 +443,15 @@ export default function Chatbot() {
               </Typography>
             </Box>
 
-            <Box className="chat-messages" />
+            {/* if user clicked New Chat but createSession is in-flight, show skeletons */}
+            <Box className="chat-messages">
+              {bootLoading
+                ? Array.from({ length: 5 }).map((_, i) => (
+                    <BubbleSkeleton key={`boot-${i}`} isBot={i % 2 === 0} />
+                  ))
+                : null}
+            </Box>
+
             <Box className="chat-input-box">
               <Paper variant="outlined" className="chat-input-paper">
                 <TextField
@@ -427,17 +463,16 @@ export default function Chatbot() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
-                      if (!curId) create();
-                      else send();
+                      create();
                     }
                   }}
                   placeholder="Type your message here…"
                   variant="standard"
                   InputProps={{ disableUnderline: true }}
-                  disabled={busy}
+                  disabled
                 />
-                <IconButton color="primary" onClick={() => (curId ? send() : create())} disabled={!input.trim() || busy}>
-                  {busy ? <CircularProgress size={22} /> : <Send />}
+                <IconButton color="primary" disabled>
+                  <Send />
                 </IconButton>
               </Paper>
             </Box>
@@ -455,23 +490,37 @@ export default function Chatbot() {
         </Button>
       </Box>
       <List dense className="chat-sidebar-list">
-        {sessions.map((s) => (
-          <ListItem key={s.id} disablePadding>
-            <ListItemButton selected={s.id === curId} onClick={() => selectChat(s.id)}>
-              <ListItemIcon style={{ minWidth: 32 }}>
-                <ChatBubble fontSize="small" />
-              </ListItemIcon>
-              <ListItemText
-                primaryTypographyProps={{ noWrap: true }}
-                primary={sessionTitles[s.id] || `Chat ${s.id}`}
-                secondary={
-                  (s.lastMessageAt && new Date(s.lastMessageAt).toLocaleDateString()) ||
-                  (s.session_started_at && new Date(s.session_started_at).toLocaleDateString())
-                }
-              />
-            </ListItemButton>
-          </ListItem>
-        ))}
+        {sessionsLoading
+          ? Array.from({ length: 6 }).map((_, i) => (
+              <ListItem key={`ls-${i}`} disablePadding>
+                <ListItemButton>
+                  <ListItemIcon>
+                    <Skeleton variant="circular" width={22} height={22} />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={<Skeleton width="60%" />}
+                    secondary={<Skeleton width="40%" />}
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))
+          : sessions.map((s) => (
+              <ListItem key={s.id} disablePadding>
+                <ListItemButton selected={s.id === curId} onClick={() => selectChat(s.id)}>
+                  <ListItemIcon style={{ minWidth: 32 }}>
+                    <ChatBubble fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primaryTypographyProps={{ noWrap: true }}
+                    primary={sessionTitles[s.id] || `Chat ${s.id}`}
+                    secondary={
+                      (s.lastMessageAt && new Date(s.lastMessageAt).toLocaleDateString()) ||
+                      (s.session_started_at && new Date(s.session_started_at).toLocaleDateString())
+                    }
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
       </List>
     </Box>
   );
@@ -512,7 +561,6 @@ export default function Chatbot() {
                   {chat?.title || "New Chat"}
                 </Typography>
 
-                {/* Delete current session (tiny icon, keeps header design) */}
                 <IconButton size="small" style={{ color: "inherit" }} onClick={confirmDelete} title="Delete chat">
                   <DeleteForever />
                 </IconButton>
@@ -553,42 +601,45 @@ export default function Chatbot() {
 
           {/* Messages */}
           <Box className="chat-messages" ref={messagesRef}>
-            {chat?.msgs.map((m) => (
-              <Box key={m.id} className={`chat-message ${m.isBot ? "bot" : "user"}`}>
-                <Box
-                  style={{
-                    marginTop: 2,
-                    color: m.isBot ? theme.palette.secondary.main : theme.palette.primary.main,
-                  }}
-                >
-                  {m.isBot ? <BotIcon size={30} /> : <Person fontSize="small" />}
+            {messagesLoading || bootLoading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <BubbleSkeleton key={`s-${i}`} isBot={i % 2 === 0} />
+              ))
+            ) : (
+              chat?.msgs.map((m) => (
+                <Box key={m.id} className={`chat-message ${m.isBot ? "bot" : "user"}`}>
+                  {m.saving ? (
+                    <BubbleSkeleton isBot={m.isBot} />
+                  ) : (
+                    <>
+                      <Box
+                        style={{
+                          marginTop: 2,
+                          color: m.isBot ? theme.palette.secondary.main : theme.palette.primary.main,
+                        }}
+                      >
+                        {m.isBot ? <BotIcon size={30} /> : <Person fontSize="small" />}
+                      </Box>
+                      <Paper
+                        variant={m.isBot ? "outlined" : "elevation"}
+                        elevation={m.isBot ? 0 : 1}
+                        className={`chat-bubble ${m.isBot ? "bot" : "user"}`}
+                        style={
+                          !m.isBot
+                            ? { backgroundColor: alpha(theme.palette.primary.main, 0.08) }
+                            : {}
+                        }
+                      >
+                        <Typography variant="body2">{m.content}</Typography>
+                        <Typography className={`chat-timestamp ${m.isBot ? "bot" : "user"}`}>
+                          {new Date(m.ts).toLocaleTimeString()}
+                        </Typography>
+                      </Paper>
+                    </>
+                  )}
                 </Box>
-                <Paper
-                  variant={m.isBot ? "outlined" : "elevation"}
-                  elevation={m.isBot ? 0 : 1}
-                  className={`chat-bubble ${m.isBot ? "bot" : "user"}`}
-                  style={
-                    !m.isBot
-                      ? { backgroundColor: alpha(theme.palette.primary.main, 0.08) }
-                      : {}
-                  }
-                >
-                  <Typography variant="body2">
-                    {m.temp && m.isBot && m.content === "…" ? "Assistant is typing…" : m.content}
-                  </Typography>
-                  <Typography className={`chat-timestamp ${m.isBot ? "bot" : "user"}`}>
-                    {new Date(m.ts).toLocaleTimeString()}
-                    {m.saving && (
-                      <>
-                        {" "}
-                        • <CircularProgress size={12} sx={{ verticalAlign: "middle" }} />
-                        <span> Saving…</span>
-                      </>
-                    )}
-                  </Typography>
-                </Paper>
-              </Box>
-            ))}
+              ))
+            )}
           </Box>
 
           {/* Input */}

@@ -1,3 +1,4 @@
+// src/components/Quiz.tsx
 import * as React from 'react'
 import { Box, Card, CardContent, Typography, RadioGroup, FormControlLabel, Radio, Button, Stack, Alert } from '@mui/material'
 import type { MCQQuestion } from '@/types/course'

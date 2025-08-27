@@ -1,3 +1,4 @@
+// src/pages/courses-page/CourseDetailPage.tsx
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import {

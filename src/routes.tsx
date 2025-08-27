@@ -1,3 +1,4 @@
+// routes.tsx
 import * as React from "react";
 import SectionPage from "./pages/courses-page/SectionPage";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";

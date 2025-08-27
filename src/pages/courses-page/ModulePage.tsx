@@ -1,3 +1,4 @@
+// src/pages/courses-page/ModulePage.tsx
 import * as React from "react";
 import {
   useParams,

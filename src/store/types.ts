@@ -1,3 +1,4 @@
+// src/store/types.ts
 export interface ChatSession {
     id: number;
     session_started_at?: string;

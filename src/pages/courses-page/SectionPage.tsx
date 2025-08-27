@@ -1,3 +1,4 @@
+// src/pages/courses-page/SectionPage.tsx
 import { useParams, Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Box,

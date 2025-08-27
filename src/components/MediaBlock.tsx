@@ -1,3 +1,4 @@
+// src/components/MediaBlock.tsx
 import * as React from 'react'
 import { Box, Paper, Typography, Button } from '@mui/material'
 import type { MediaItem } from '@/types/course'

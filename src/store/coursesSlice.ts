@@ -1,3 +1,4 @@
+// src/store/coursesSlice.ts
 import { createSlice, nanoid, type PayloadAction } from "@reduxjs/toolkit"
 import type { Course, Module, MCQQuestion } from "@/types/course"
 

@@ -1,3 +1,4 @@
+// src/store/index.ts
 import { configureStore } from "@reduxjs/toolkit";
 import users from "./usersSlice";
 import courses from "./coursesSlice";

@@ -1,3 +1,4 @@
+// scr/store/chatsSlice.ts
 import { createSlice, createAsyncThunk, type PayloadAction } from "@reduxjs/toolkit";
 import { chatApi } from "../pages/chatbot-page/chatApi";
 
