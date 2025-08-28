@@ -18,7 +18,7 @@ export type ChatSessionDTO = {
     lastMessageAt?: string | null;
 };
 
-const API_ROOT = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "") || "";
+const API_ROOT = import.meta.env.VITE_API_BASE_URL;
 const BASE_URL = `${API_ROOT}/chat`;
 
 function authHeaders() {

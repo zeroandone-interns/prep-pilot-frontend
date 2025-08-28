@@ -261,6 +261,7 @@ export default function Chatbot() {
     }
   };
 
+
   // ================================
   // Send message (save to Redux) + stub bot "hi"
   // ================================
@@ -326,7 +327,7 @@ export default function Chatbot() {
       setBusy(false);
     }, 350);
   };
-  // ================================
+
 
   // Local helpers (UI state only)
   const addLocal = (chatId: number, msg: Msg) => {

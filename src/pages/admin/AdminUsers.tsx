@@ -23,14 +23,52 @@ import {
   FormControl,
   Typography,
   CircularProgress,
+  Divider,
 } from "@mui/material";
 import { PersonAdd, Delete } from "@mui/icons-material";
+import EditIcon from "@mui/icons-material/Edit";
+import FileCopyIcon from "@mui/icons-material/FileCopy";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+
+import { styled, alpha } from "@mui/material/styles";
 import { useState, useEffect, useCallback } from "react";
 import { useSnackbar } from "@/components/SnackbarProvider";
 import axios from "axios";
 import Papa from "papaparse";
 import { useDropzone } from "react-dropzone";
+import Menu, { type MenuProps } from "@mui/material/Menu";
 
+const StyledMenu = styled((props: MenuProps) => (
+  <Menu
+    elevation={0}
+    anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+    transformOrigin={{ vertical: "top", horizontal: "right" }}
+    {...props}
+  />
+))(({ theme }) => ({
+  "& .MuiPaper-root": {
+    borderRadius: 6,
+    marginTop: theme.spacing(1),
+    minWidth: 180,
+    color: "rgb(55, 65, 81)",
+    boxShadow:
+      "rgb(255, 255, 255) 0px 0px 0px 0px, rgba(0, 0, 0, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.1) 0px 10px 15px -3px, rgba(0, 0, 0, 0.05) 0px 4px 6px -2px",
+    "& .MuiMenu-list": { padding: "4px 0" },
+    "& .MuiMenuItem-root": {
+      "& .MuiSvgIcon-root": {
+        fontSize: 18,
+        color: theme.palette.text.secondary,
+        marginRight: theme.spacing(1.5),
+      },
+      "&:active": {
+        backgroundColor: alpha(
+          theme.palette.primary.main,
+          theme.palette.action.selectedOpacity
+        ),
+      },
+    },
+  },
+}));
 
 interface CsvUser {
   FirstName: string;
@@ -39,12 +77,21 @@ interface CsvUser {
   role: string;
 }
 
-
 export default function AdminUsers() {
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
 
+  // Dialog state
+  const [openForm, setOpenForm] = useState(false);
+  const [openBulk, setOpenBulk] = useState(false);
 
-  const [open, setOpen] = useState(false);
+  // Menu state
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const menuOpen = Boolean(anchorEl);
+  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+  const handleMenuClose = () => setAnchorEl(null);
+
   const [loading, setLoading] = useState(true);
   const [addForm, setAddForm] = useState({
     firstName: "",
@@ -53,10 +100,7 @@ export default function AdminUsers() {
     role: "learner" as "learner" | "admin",
   });
 
-
-
   const [organizationId, setOrganizationId] = useState<number | undefined>();
-
   const { showMessage } = useSnackbar();
 
   const [users, setUsers] = useState<
@@ -68,17 +112,10 @@ export default function AdminUsers() {
       role: string;
     }[]
   >([]);
-const [csvUsers, setCsvUsers] = useState<CsvUser[]>([]);
-
-
+  const [csvUsers, setCsvUsers] = useState<CsvUser[]>([]);
   const sub = localStorage.getItem("sub");
-  // remove one row locally
-const handleRemoveCsvUser = (index: number) => {
-  setCsvUsers((prev) => prev.filter((_, i) => i !== index));
-};
 
-
-
+  // ====== User CRUD Handlers ======
   const handleDelete = async (sub: string) => {
     try {
       await axios.delete(`${BaseUrl}/users/${sub}`);
@@ -91,27 +128,18 @@ const handleRemoveCsvUser = (index: number) => {
   const fetchUsers = async () => {
     if (!sub) {
       showMessage("User not found in localStorage", "error");
-
       return;
     }
-
     setLoading(true);
-
     try {
       const userRes = await axios.get(`${BaseUrl}/users/by-sub-db/${sub}`);
-      const user = userRes.data;
-      const { id: userId, organization_id } = user;
-
-      if (!userId || !organization_id) {
-        throw new Error("Missing userId or organizationId from backend.");
-      }
-
+      const { id: userId, organization_id } = userRes.data;
+      if (!userId || !organization_id) throw new Error("Missing IDs");
       setOrganizationId(organization_id);
 
       const usersResult = await axios.get(
         `${BaseUrl}/users/by-org/${organization_id}`
       );
-
       const mappedUsers = usersResult.data.map((u: any) => ({
         sub: u.attributes.sub,
         given_name: u.attributes.given_name,
@@ -119,7 +147,6 @@ const handleRemoveCsvUser = (index: number) => {
         email: u.attributes.email,
         role: u.groups[0],
       }));
-
       setUsers(mappedUsers);
     } catch (err) {
       console.error(err);
@@ -127,88 +154,71 @@ const handleRemoveCsvUser = (index: number) => {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     fetchUsers();
   }, []);
 
-const handleAddUser = async () => {
-  try {
-    await axios.post(
-      `${BaseUrl}/users/admin-create`,
-      {
-        firstName: addForm.firstName,
-        lastName: addForm.lastName,
-        role: addForm.role,
-        email: addForm.email,
-        organizationId,
-      },
-      { headers: { "Content-Type": "application/json" } }
-    );
-
-    showMessage("User was added!", "success");
-    fetchUsers();
-  } catch (error: any) {
-    console.log(error);
-
-      const msg = error.response?.data?.message;
-      showMessage(msg || "Failed to add user", "error");
-  }
-};
-
+  const handleAddUser = async () => {
+    try {
+      await axios.post(
+        `${BaseUrl}/users/admin-create`,
+        { ...addForm, organizationId },
+        { headers: { "Content-Type": "application/json" } }
+      );
+      showMessage("User was added!", "success");
+      fetchUsers();
+    } catch (error: any) {
+      showMessage(
+        error.response?.data?.message || "Failed to add user",
+        "error"
+      );
+    }
+  };
 
   const handleBulkAddUsers = async () => {
     if (!csvUsers.length) return;
     try {
       for (const u of csvUsers) {
         await axios.post(`${BaseUrl}/users/admin-create`, {
-          firstName: u["FirstName"],
-          lastName: u["LastName"],
-          email: u["email"],
-          role: u["role"] || "learner",
+          firstName: u.FirstName,
+          lastName: u.LastName,
+          email: u.email,
+          role: u.role || "learner",
           organizationId,
         });
       }
-      showMessage("Users from CSV were added!","success");
+      showMessage("Users from CSV were added!", "success");
       fetchUsers();
       setCsvUsers([]);
-    } catch (err:any) {
-      console.error("Bulk add failed:", err);
-       const msg = err.response?.data?.message;
-       showMessage(msg || "Failed to add user", "error");
+    } catch (err: any) {
+      showMessage(
+        err.response?.data?.message || "Failed to add users",
+        "error"
+      );
     }
   };
 
- const onDrop = useCallback((acceptedFiles: File[]) => {
-   const file = acceptedFiles[0];
-   if (!file) return;
-
-   Papa.parse<CsvUser>(file, {
-     header: true,
-     skipEmptyLines: true,
-     complete: (results) => {
-       console.log("Parsed CSV:", results.data);
-
-       // Filter invalid/empty rows and normalize role
-       const cleaned = results.data
-         .filter(
-           (row): row is CsvUser =>
-             !!row.FirstName && !!row.LastName && !!row.email
-         )
-         .map((row) => ({
-           ...row,
-           role: row.role?.toLowerCase() || "learner",
-         }));
-
-       setCsvUsers(cleaned);
-       console.log(csvUsers);
-     },
-     error: (err) => {
-       console.error("CSV parsing error:", err);
-     },
-   });
- }, []);
-
+  // ====== CSV Dropzone ======
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+    Papa.parse<CsvUser>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const cleaned = results.data
+          .filter(
+            (row): row is CsvUser =>
+              !!row.FirstName && !!row.LastName && !!row.email
+          )
+          .map((row) => ({
+            ...row,
+            role: row.role?.toLowerCase() || "learner",
+          }));
+        setCsvUsers(cleaned);
+      },
+    });
+  }, []);
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "text/csv": [".csv"] },
@@ -218,12 +228,10 @@ const handleAddUser = async () => {
   if (loading) {
     return (
       <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "50vh",
-        }}
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        height="50vh"
       >
         <CircularProgress />
       </Box>
@@ -234,15 +242,42 @@ const handleAddUser = async () => {
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
         <Typography variant="h5">Users</Typography>
+
+        {/* Menu Button */}
         <Button
-          startIcon={<PersonAdd />}
           variant="contained"
-          onClick={() => setOpen(true)}
+          disableElevation
+          onClick={handleMenuClick}
+          endIcon={<KeyboardArrowDownIcon />}
+          startIcon={<PersonAdd />}
         >
           Add User
         </Button>
+        <StyledMenu
+          anchorEl={anchorEl}
+          open={menuOpen}
+          onClose={handleMenuClose}
+        >
+          <MenuItem
+            onClick={() => {
+              setOpenForm(true);
+              handleMenuClose();
+            }}
+          >
+            <EditIcon /> Add New User
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              setOpenBulk(true);
+              handleMenuClose();
+            }}
+          >
+            <FileCopyIcon /> Add Bulk Users
+          </MenuItem>
+        </StyledMenu>
       </Box>
 
+      {/* Users Table */}
       <TableContainer component={Paper}>
         <Table size="small">
           <TableHead>
@@ -261,11 +296,7 @@ const handleAddUser = async () => {
                 </TableCell>
                 <TableCell>{u.email}</TableCell>
                 <TableCell>
-                  <Chip
-                    size="small"
-                    color={u.role === "instructor" ? "secondary" : "default"}
-                    label={u.role}
-                  />
+                  <Chip size="small" label={u.role} />
                 </TableCell>
                 <TableCell align="right">
                   <IconButton color="error" onClick={() => handleDelete(u.sub)}>
@@ -278,28 +309,22 @@ const handleAddUser = async () => {
         </Table>
       </TableContainer>
 
+      {/* === Dialog 1: Add New User === */}
       <Dialog
-        open={open}
-        onClose={() => setOpen(false)}
-        maxWidth="md"
+        open={openForm}
+        onClose={() => setOpenForm(false)}
+        maxWidth="sm"
         fullWidth
       >
         <DialogTitle>Add User</DialogTitle>
-        <DialogContent
-          sx={{
-            pt: '20px !important',
-            display: "grid",
-            gap: 2,
-            maxHeight: "60vh", 
-            overflowY: "auto", 
-          }}
-        >
+        <DialogContent sx={{ display: "grid", gap: 2 }}>
           <TextField
             label="First name"
             value={addForm.firstName}
             onChange={(e) =>
               setAddForm({ ...addForm, firstName: e.target.value })
             }
+            required
           />
           <TextField
             label="Last name"
@@ -307,18 +332,20 @@ const handleAddUser = async () => {
             onChange={(e) =>
               setAddForm({ ...addForm, lastName: e.target.value })
             }
+            required
+
           />
           <TextField
             label="Email"
             type="email"
             value={addForm.email}
             onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+            required
           />
           <FormControl>
             <InputLabel id="role">Role</InputLabel>
             <Select
               labelId="role"
-              label="Role"
               value={addForm.role}
               onChange={(e) =>
                 setAddForm({
@@ -326,20 +353,50 @@ const handleAddUser = async () => {
                   role: e.target.value as "learner" | "admin",
                 })
               }
+              required
             >
               <MenuItem value="learner">Learner</MenuItem>
               <MenuItem value="instructor">Instructor</MenuItem>
             </Select>
           </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenForm(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              if (!addForm.firstName || !addForm.lastName || !addForm.email)
+                return;
+              handleAddUser();
+              setAddForm({
+                firstName: "",
+                lastName: "",
+                email: "",
+                role: "learner",
+              });
+              setOpenForm(false);
+            }}
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-          <Typography variant="subtitle1">Or upload CSV</Typography>
+      {/* === Dialog 2: Bulk Add Users === */}
+      <Dialog
+        open={openBulk}
+        onClose={() => setOpenBulk(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Add Bulk Users</DialogTitle>
+        <DialogContent sx={{ display: "grid", gap: 2 }}>
           <Box
             {...getRootProps()}
             sx={{
               p: 2,
               border: "2px dashed gray",
               textAlign: "center",
-              cursor: "pointer",
               bgcolor: isDragActive ? "action.hover" : "background.paper",
             }}
           >
@@ -351,15 +408,8 @@ const handleAddUser = async () => {
             </Typography>
           </Box>
 
-          {/* CSV preview table */}
           {csvUsers.length > 0 && (
-            <TableContainer
-              component={Paper}
-              sx={{
-                maxHeight: 250,
-                overflow: "auto", // enable scrollbars
-              }}
-            >
+            <TableContainer component={Paper} sx={{ maxHeight: 250 }}>
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
@@ -367,7 +417,6 @@ const handleAddUser = async () => {
                     <TableCell>Last Name</TableCell>
                     <TableCell>Email</TableCell>
                     <TableCell>Role</TableCell>
-                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -377,15 +426,6 @@ const handleAddUser = async () => {
                       <TableCell>{row.LastName}</TableCell>
                       <TableCell>{row.email}</TableCell>
                       <TableCell>{row.role}</TableCell>
-
-                      <TableCell align="right">
-                        <IconButton
-                          color="error"
-                          onClick={() => handleRemoveCsvUser(idx)}
-                        >
-                          <Delete />
-                        </IconButton>
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -393,28 +433,14 @@ const handleAddUser = async () => {
             </TableContainer>
           )}
         </DialogContent>
-
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={() => setOpenBulk(false)}>Cancel</Button>
           <Button
             variant="contained"
             onClick={() => {
-              if (csvUsers.length > 0) {
-                handleBulkAddUsers();
-              } else {
-                if (!addForm.firstName || !addForm.lastName || !addForm.email)
-                  return;
-                handleAddUser();
-              }
-
-              setAddForm({
-                firstName: "",
-                lastName: "",
-                email: "",
-                role: "learner",
-              });
+              handleBulkAddUsers();
               setCsvUsers([]);
-              setOpen(false);
+              setOpenBulk(false);
             }}
           >
             Save

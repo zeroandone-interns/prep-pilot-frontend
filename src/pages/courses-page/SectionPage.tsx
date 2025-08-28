@@ -1,5 +1,10 @@
-// src/pages/courses-page/SectionPage.tsx
-import { useParams, Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
+
+import {
+  useParams,
+  Link as RouterLink,
+  useNavigate,
+} from "react-router-dom";
+
 import {
   Box,
   Typography,
@@ -7,35 +12,46 @@ import {
   Link,
   Divider,
   CircularProgress,
-  Button
+  Button,
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import axios from "axios";
-
+import { useSelector , useDispatch } from "react-redux";
+import { type RootState } from "@/store";
+import { setNext } from "@/store/NextSlice";
 
 interface Paragraph {
   id: number;
-  content_title: string;
-  content_body: string;
+  content_title_ar: string;
+  content_body_ar: string;
+  content_title_en: string;
+  content_body_en: string;
+  content_title_fr: string;
+  content_body_fr: string;
   section_id: number;
 }
 
 export default function SectionPage() {
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
-  const location = useLocation();
+    const dispatch = useDispatch();
+  const module = useSelector((state: RootState) => state.module);
+  const course = useSelector((state: RootState) => state.course);
+  const section = useSelector((state: RootState) => state.section);
   const { id, moduleId, sectionId } = useParams();
   const navigate = useNavigate();
+  const language = useSelector((state: RootState) => state.language);
+  const lang = language.lang;
 
-  const { Coursetitle, Moduletitle, Sectiontitle } = (location.state as {
-    Coursetitle: string;
-    Moduletitle: string;
-    Sectiontitle: string;
-  }) || { Coursetitle: "", Moduletitle: "", Sectiontitle: "" };
+  const Coursetitle = course.title;
+  const Moduletitle = (module[`title_${lang}` as keyof typeof module] ??
+    "") as string;
+  const Sectiontitle = (section[`title_${lang}` as keyof typeof section] ??
+    "") as string;
 
   const [paragraphs, setParagraphs] = useState<Paragraph[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const[userId , setUserId]= useState(null);
+  const [userId, setUserId] = useState(null);
 
   useEffect(() => {
     if (!sectionId) return;
@@ -52,7 +68,7 @@ export default function SectionPage() {
         console.error(err);
         setError("Failed to fetch paragraphs");
         setLoading(false);
-      } 
+      }
     };
 
     const fetchUser = async () => {
@@ -66,12 +82,10 @@ export default function SectionPage() {
         setUserId(userId);
 
         if (!userId) throw new Error("Missing userId from backend.");
-        
       } catch (error) {
         console.log(error);
-        
       }
-    }
+    };
 
     fetchParagraphs();
     fetchUser();
@@ -101,19 +115,33 @@ export default function SectionPage() {
       </Breadcrumbs>
 
       {/* Section Title */}
-      <Typography variant="h4" sx={{ mb: 2 }}>
+      <Typography
+        variant="h4"
+        sx={{
+          mb: 2,
+          direction: lang === "ar" ? "rtl" : "ltr",
+          textAlign: lang === "ar" ? "right" : "left",
+        }}
+      >
         {Sectiontitle}
       </Typography>
       <Divider sx={{ mb: 3 }} />
 
       {/* Paragraphs */}
       {paragraphs.map((p) => (
-        <Box key={p.id} sx={{ mb: 4 }}>
+        <Box
+          key={p.id}
+          sx={{
+            mb: 4,
+            direction: lang === "ar" ? "rtl" : "ltr",
+            textAlign: lang === "ar" ? "right" : "left",
+          }}
+        >
           <Typography variant="h6" sx={{ mb: 1 }}>
-            {p.content_title}
+            {p[`content_title_${lang}` as keyof typeof p]}
           </Typography>
           <Typography variant="body1" sx={{ mb: 2, lineHeight: 1.7 }}>
-            {p.content_body}
+            {p[`content_body_${lang}` as keyof typeof p]}
           </Typography>
           <Divider />
         </Box>
@@ -149,25 +177,47 @@ export default function SectionPage() {
                   sectionId: next.sectionId,
                 });
 
-                navigate(
-                  `/courses/${id}/modules/${next.moduleId}/sections/${next.sectionId}`,
-                  {
-                    state: {
-                      Coursetitle,
-                      Moduletitle: next.moduleTitle ?? Moduletitle,
-                      Sectiontitle: next.sectionTitle,
-                    },
-                  }
-                );
-              } else {
+                if (next.moduleStatus === "new") {
+                  console.log("new module");
+                  dispatch(
+                    setNext({
+                      SectionId: Number(sectionId),
+                      CourseId: Number(id)
+                    })
+                  );
+                  navigate(
+                    `/courses/${id}/modules/${next.moduleId}/flashcards`
+                  );
+                } else {
+                  navigate(
+                    `/courses/${id}/modules/${next.moduleId}/sections/${next.sectionId}`,
+                    {
+                      state: {
+                        Coursetitle,
+                        Moduletitle: next.moduleTitle ?? Moduletitle,
+                        Sectiontitle: next.sectionTitle,
+                      },
+                    }
+                  );
+                }
+              } else { //the last module
                 await axios.post(`${BaseUrl}/courses/progress`, {
                   userId,
                   courseId: Number(id),
                   moduleId: next.moduleId,
                   sectionId: next.sectionId,
-                  completed: true
+                  completed: true,
                 });
-                alert("🎉 You've completed the course!");
+               // navigate(`/courses/${id}/exam`);
+               dispatch(
+                 setNext({
+                   SectionId: 0,
+                   CourseId: Number(id),
+                 })
+               );
+                  navigate(
+                    `/courses/${id}/modules/${moduleId}/flashcards`
+                  );
               }
             } catch (err) {
               console.error(err);

@@ -1,11 +1,6 @@
 // src/pages/courses-page/ModulePage.tsx
 import * as React from "react";
-import {
-  useParams,
-  Link as RouterLink,
-  useLocation,
-  useNavigate,
-} from "react-router-dom";
+import { useParams, Link as RouterLink } from "react-router-dom";
 import { useState, useEffect } from "react";
 import {
   Box,
@@ -20,18 +15,25 @@ import {
   Stack,
 } from "@mui/material";
 import axios from "axios";
+import { useSelector, useDispatch } from "react-redux";
+import { setSection } from "../../store/SectionSlice";
+import { type RootState } from "@/store";
 
 interface Section {
   id: number;
-  title: string;
-  is_complete: boolean;
-  module_id: number;
+  title_en: string;
+  title_fr: string;
+  title_ar: string;
 }
 
 export default function SectionPage() {
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
-  const location = useLocation();
-  const navigate = useNavigate();
+  const module = useSelector((state: RootState) => state.module);
+  const course = useSelector((state: RootState) => state.course);
+  const language = useSelector((state: RootState) => state.language);
+  const lang = language.lang;
+
+  const dispatch = useDispatch();
   const { id: courseId, moduleId } = useParams<{
     id: string;
     moduleId: string;
@@ -41,10 +43,8 @@ export default function SectionPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { Coursetitle, Moduletitle } = (location.state as {
-    Coursetitle: string;
-    Moduletitle: string;
-  }) || { Coursetitle: "", Moduletitle: "" };
+  const Coursetitle = course.title;
+  const Moduletitle = (module[`title_${lang}` as keyof typeof module] ?? "") as string;
 
   useEffect(() => {
     if (!moduleId) return;
@@ -107,33 +107,26 @@ export default function SectionPage() {
               boxShadow: 3,
               transition: "0.3s",
               "&:hover": { boxShadow: 6 },
+              direction: lang === "ar" ? "rtl" : "ltr",
+              textAlign: lang === "ar" ? "right" : "left",
             }}
           >
             <CardActionArea
+              component={RouterLink}
+              to={`/courses/${courseId}/modules/${moduleId}/sections/${section.id}`}
               onClick={() =>
-                navigate(
-                  `/courses/${courseId}/modules/${moduleId}/sections/${section.id}`,
-                  {
-                    state: {
-                      Coursetitle,
-                      Moduletitle,
-                      Sectiontitle: section.title,
-                    },
-                  }
+                dispatch(
+                  setSection({
+                    title_en: section.title_en,
+                    title_ar: section.title_ar,
+                    title_fr: section.title_fr,
+                  })
                 )
               }
             >
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  {section.title}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color={
-                    section.is_complete ? "success.main" : "text.secondary"
-                  }
-                >
-                  {section.is_complete ? "Completed ✅" : "Not completed"}
+                  {section[`title_${lang}` as keyof typeof section]}
                 </Typography>
               </CardContent>
             </CardActionArea>

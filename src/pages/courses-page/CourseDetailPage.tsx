@@ -1,5 +1,6 @@
-// src/pages/courses-page/CourseDetailPage.tsx
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+
+import { useParams, useNavigate } from "react-router-dom";
+
 import { useState, useEffect } from "react";
 import {
   Box,
@@ -18,28 +19,25 @@ import {
 } from "@mui/material";
 import axios from "axios";
 import { Link as RouterLink } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { setModule } from "../../store/ModuleSlice";
+
+import { type RootState } from "@/store";
 
 export default function CourseDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
+  const dispatch = useDispatch();
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
   const token = localStorage.getItem("token");
+  const course = useSelector((state: RootState) => state.course);
+  const language = useSelector((state: RootState) => state.language);
+  const lang = language.lang;
 
-  const {
-    enrolled: initialEnrolled,
-    title,
-    description,
-    level,
-  } = location.state || {
-    enrolled: false,
-    title: "",
-    description: "",
-    level: "",
-  };
-
-  const [enrolled, setEnrolled] = useState(initialEnrolled);
-  const [modules, setModules] = useState<{ id: number; title: string }[]>([]);
+  const [enrolled, setEnrolled] = useState(course.enrolled);
+  const [modules, setModules] = useState<
+    { id: number; title_en: string; title_ar: string; title_fr: string }[]
+  >([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [userId, setUserId] = useState(null);
 
@@ -48,6 +46,7 @@ export default function CourseDetailPage() {
     const fetchModules = async () => {
       try {
         const ModulesRes = await axios.get(`${BaseUrl}/courses/module/${id}`);
+        console.log(ModulesRes);
         setModules(ModulesRes.data);
       } catch (err) {
         console.error("Failed to fetch modules:", err);
@@ -88,17 +87,17 @@ export default function CourseDetailPage() {
       >
         <Box>
           <Typography variant="h4" gutterBottom>
-            {title}
+            {course.title}
           </Typography>
           <Typography variant="body1" color="text.secondary" gutterBottom>
-            {description}
+            {course.description}
           </Typography>
           <Typography
             variant="subtitle2"
             color="text.secondary"
             sx={{ fontStyle: "italic" }}
           >
-            Level: {level || "N/A"}
+            Level: {course.level || "N/A"}
           </Typography>
         </Box>
 
@@ -132,7 +131,7 @@ export default function CourseDetailPage() {
               setOpenDialog(false);
               await axios.post(
                 `${BaseUrl}/courses/enroll/${id}`,
-                {}, 
+                {},
                 {
                   headers: {
                     Authorization: `Bearer ${token}`,
@@ -159,20 +158,27 @@ export default function CourseDetailPage() {
             transition: "opacity 0.3s",
             boxShadow: 3,
             borderRadius: 2,
+            direction: lang === "ar" ? "rtl" : "ltr",
+            textAlign: lang === "ar" ? "right" : "left",
           }}
         >
           {enrolled ? (
             <CardActionArea
               component={RouterLink}
               to={`/courses/${id}/modules/${m.id}`}
-              state={{
-                Coursetitle: title,
-                Moduletitle: m.title,
-              }}
+              onClick={() =>
+                dispatch(
+                  setModule({
+                    title_en: m.title_en,
+                    title_ar: m.title_ar,
+                    title_fr: m.title_fr,
+                  })
+                )
+              }
             >
               <Box sx={{ p: 2 }}>
                 <Typography color="text.primary">
-                  {index + 1}. {m.title}
+                  {index + 1}. {m[`title_${lang}` as keyof typeof m]}
                 </Typography>
               </Box>
             </CardActionArea>
@@ -180,7 +186,7 @@ export default function CourseDetailPage() {
             <Tooltip title="Enroll now to access this module">
               <Box sx={{ p: 2 }}>
                 <Typography color="text.secondary">
-                  {index + 1}. {m.title}
+                  {index + 1}. {m[`title_${lang}` as keyof typeof m]}
                 </Typography>
               </Box>
             </Tooltip>

@@ -18,9 +18,12 @@ import { Link as RouterLink } from "react-router-dom";
 import { alpha } from "@mui/material/styles";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { useDispatch } from "react-redux";
+import { setCourse } from "../../store/CourseSlice";
 
 export default function CoursesPage() {
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
+  const dispatch = useDispatch();
 
   const [courses, setCourses] = useState<
     {
@@ -30,6 +33,7 @@ export default function CoursesPage() {
       level: string;
       enrolled: boolean;
       progress: number;
+      isPendingDeletion: boolean;
     }[]
   >([]);
 
@@ -67,6 +71,7 @@ export default function CoursesPage() {
         );
 
         setCourses(coursesWithProgress);
+    
       } catch (err) {
         console.error("Failed to fetch courses:", err);
       } finally {
@@ -244,7 +249,16 @@ export default function CoursesPage() {
           ))
         ) : filteredCourses.length > 0 ? (
           filteredCourses.map((c) => (
-            <Box key={c.id} sx={{ flex: "1 1 300px", maxWidth: 350 }}>
+            <Box
+              key={c.id}
+              sx={{
+                flex: "1 1 300px",
+                maxWidth: 350,
+                opacity: !c.enrolled && c.isPendingDeletion ? 0.5 : 1, // dim if pending & not enrolled
+                pointerEvents:
+                  !c.enrolled && c.isPendingDeletion ? "none" : "auto", // disable click
+              }}
+            >
               <CardShell enrolled={c.enrolled}>
                 {c.enrolled && (
                   <>
@@ -275,11 +289,19 @@ export default function CoursesPage() {
                 <CardActionArea
                   component={RouterLink}
                   to={`/courses/${c.id}`}
-                  state={{
-                    enrolled: c.enrolled,
-                    title: c.title,
-                    description: c.description,
-                    level: c.level,
+                  onClick={() =>
+                    dispatch(
+                      setCourse({
+                        enrolled: c.enrolled,
+                        title: c.title,
+                        description: c.description,
+                        level: c.level,
+                      })
+                    )
+                  }
+                  sx={{
+                    pointerEvents:
+                      !c.enrolled && c.isPendingDeletion ? "none" : "auto",
                   }}
                 >
                   <CardContent sx={{ p: 2.25 }}>
@@ -291,8 +313,20 @@ export default function CoursesPage() {
                     >
                       <Typography variant="h6">{c.title}</Typography>
                       <Chip
-                        label={c.enrolled ? "Enrolled" : "Enroll now"}
-                        color={c.enrolled ? "success" : "default"}
+                        label={
+                          c.isPendingDeletion && !c.enrolled
+                            ? "Not Available"
+                            : c.enrolled
+                            ? "Enrolled"
+                            : "Enroll now"
+                        }
+                        color={
+                          c.isPendingDeletion && !c.enrolled
+                            ? "error"
+                            : c.enrolled
+                            ? "success"
+                            : "default"
+                        }
                         size="small"
                       />
                     </Stack>

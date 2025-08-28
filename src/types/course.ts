@@ -59,3 +59,7 @@ export interface Course {
   modules: Module[]
   finalExam?: FinalExam
 }
+
+export interface MCQQuestionWithExplanation extends MCQQuestion {
+  explanation?: string;
+}

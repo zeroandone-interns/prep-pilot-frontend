@@ -13,6 +13,8 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
@@ -21,9 +23,16 @@ import PeopleIcon from "@mui/icons-material/People";
 import SchoolIcon from "@mui/icons-material/School";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useLocation, useNavigate, Outlet } from "react-router-dom";
-import { type AppDispatch } from "@/store";
-import { useDispatch } from "react-redux";
+import { type AppDispatch, type RootState } from "@/store";
+import { useDispatch, useSelector } from "react-redux";
 import { clearAuth } from "@/store/AuthSlice";
+import { clearCourse } from "@/store/CourseSlice";
+import { clearModule } from "@/store/ModuleSlice";
+import { clearSection } from "@/store/SectionSlice";
+import { setLanguage } from "@/store/LanguageSlice";
+import LanguageIcon from "@mui/icons-material/Language";
+import { Link as RouterLink } from "react-router-dom";
+import { clearLearner, setLearner } from "@/store/LearnerViewSlice";
 
 const links = [
   {
@@ -54,17 +63,23 @@ const links = [
 
 export default function MainLayout() {
   const location = useLocation();
-  const navigate = useNavigate();
+  const navigate = useNavigate();  
+   const learnerView = useSelector((state: RootState) => state.learner.learner);
   const dispatch = useDispatch<AppDispatch>();
   const [open, setOpen] = React.useState(false);
-  const [showLearnerView, setShowLearnerView] = React.useState(false);
+  const [showLearnerView, setShowLearnerView] = React.useState(learnerView);
 
   const groups = localStorage.getItem("groups");
+  const lang = useSelector((state: RootState) => state.language.lang);
+
+  
+
+
 
   // Filter links based on real role OR temporary learner view toggle
   const filteredLinks = links.filter((link) =>
     showLearnerView
-      ? link.roles.includes("learner") // show only learner links when toggled
+      ? link.roles.includes("learner")
       : link.roles.some((role) => groups?.includes(role))
   );
 
@@ -74,6 +89,11 @@ export default function MainLayout() {
     localStorage.removeItem("groups");
 
     dispatch(clearAuth());
+    dispatch(clearCourse());
+    dispatch(clearModule());
+    dispatch(clearSection());
+    dispatch(clearLearner());
+
     navigate("/");
   };
 
@@ -117,20 +137,40 @@ export default function MainLayout() {
             sx={{ height: 48, width: "auto", display: "block" }}
           />
 
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-          </Typography>
+          <Typography variant="h6" sx={{ flexGrow: 1 }} />
+
+          {/* Language selector (for learners OR instructor in learner view) */}
+          {(groups?.includes("learner") || showLearnerView) && (
+            <Select
+              value={lang}
+              onChange={(e) => dispatch(setLanguage({ lang: e.target.value }))}
+              size="small"
+              sx={{
+                color: "white",
+                borderColor: "white",
+                "& .MuiSvgIcon-root": { color: "white" },
+                mr: 2,
+                minWidth: 120,
+              }}
+              IconComponent={LanguageIcon} // replaces the default arrow icon
+            >
+              <MenuItem value="en">English</MenuItem>
+              <MenuItem value="ar">عربي</MenuItem>
+              <MenuItem value="fr">Français</MenuItem>
+            </Select>
+          )}
 
           {/* Learner Experience toggle (only for instructors) */}
           {groups?.includes("instructor") && (
             <Button
               color="inherit"
               variant="outlined"
+              component={RouterLink}
+              to={!showLearnerView ? "/courses" : "/admin/courses"} // compute next path
               onClick={() => {
-                setShowLearnerView((prev) => {
-                  const next = !prev;
-                  navigate(next ? "/courses" : "/admin/courses");
-                  return next;
-                });
+                const next = !showLearnerView; // compute the next state
+                setShowLearnerView(next); // update local state
+                dispatch(setLearner({ learner: next })); // update Redux state
               }}
               sx={{ mr: 1 }}
             >

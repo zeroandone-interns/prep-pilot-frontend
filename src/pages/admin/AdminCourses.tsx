@@ -77,6 +77,35 @@ export default function AdminCourses() {
     navigate(`/admin/course/${id}`);
   };
 
+const handleDeleteCourse = async (id: number) => {
+  try {
+    const result = await axios.delete(`${BaseUrl}/courses/${id}`);
+    console.log(result);
+
+    if (
+      result.data.message === "Course deleted successfully (no users enrolled)."
+    ) {
+      showMessage("Course deleted successfully", "success");
+      fetchCourses();
+    } else if (
+      result.data.message ===
+      "Course scheduled for deletion once all users complete it."
+    ) {
+      showMessage(
+        "Users enrolled in this course. Scheduled for deletion once all users complete it.",
+        "warning"
+      );
+    } else if (
+      result.data.message === "Course is already scheduled for deletion."
+    ) {
+      showMessage("Course is already scheduled for deletion.", "error");
+    }
+  } catch (error) {
+    showMessage(`${error}`, "error");
+  }
+};
+
+
   return (
     <Box className="admin-courses">
       <Box
@@ -142,7 +171,10 @@ export default function AdminCourses() {
                     </Tooltip>
 
                     <Tooltip title="Delete Course">
-                      <IconButton color="error">
+                      <IconButton
+                        color="error"
+                        onClick={() => handleDeleteCourse(c.id)}
+                      >
                         <DeleteIcon />
                       </IconButton>
                     </Tooltip>
