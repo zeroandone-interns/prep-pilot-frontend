@@ -20,7 +20,7 @@ import {
 } from "@mui/material";
 import { Delete, Edit, Save, Cancel, ArrowBack } from "@mui/icons-material";
 import { useDropzone } from "react-dropzone";
-
+import { useSnackbar } from "@/components/SnackbarProvider";
 interface Document {
   id: number;
   url: string;
@@ -42,6 +42,7 @@ export default function AdminViewCourse() {
   const { courseId } = useParams<{ courseId: string }>();
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
   const AIUrl = import.meta.env.VITE_AI_BASE_URL;
+  const { showMessage } = useSnackbar();
   const navigate = useNavigate();
   const [course, setCourse] = useState<Course | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -108,14 +109,34 @@ export default function AdminViewCourse() {
         await axios.post(`${BaseUrl}/courses/upload/${courseId}`, form, {
           headers: { "Content-Type": "multipart/form-data" },
         });
-      }/*else {  //else we need to call the ai generate course endpoint (if no new documents are uploaded)
-         const generateCourse = await axios.post(
-           `${AIUrl}/generate_content`,
-           {
-             course_id: courseId,
-           }
-         );
-    }*/
+      } else {
+        // else we need to call the AI generate course endpoint (if no new documents are uploaded)
+        setLoading(true); // start loader
+        try {
+          const generateCourse = await axios.post(
+            `${BaseUrl}/courses/generate`,
+            {
+              courseId,
+            }
+          );
+
+          if (generateCourse.data.success) {
+            showMessage("Course content updated successfully", "success");
+            console.log("Course content generated successfully");
+          } else {
+            console.error(
+              "Failed to generate course content:",
+              generateCourse.data.message
+            );
+            showMessage("Failed to generate course content", "error");
+          }
+        } catch (err) {
+          console.error("AI generate course failed:", err);
+          showMessage("AI course generation failed", "error");
+        } finally {
+          setLoading(false); // stop loader
+        }
+      }
 
       // 4. refresh course
       const res = await axios.get(`${BaseUrl}/courses/details/${courseId}`);

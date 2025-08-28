@@ -11,7 +11,9 @@ import {
   Divider,
   Chip,
   Paper,
-  MenuItem
+  MenuItem,
+  CircularProgress,
+  Typography,
 } from "@mui/material";
 import { Link as LinkIcon } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
@@ -21,6 +23,7 @@ import Dropzone from "react-dropzone";
 
 export default function CreateCoursePage() {
   const navigate = useNavigate();
+  const { showMessage } = useSnackbar();
 
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
@@ -31,7 +34,7 @@ export default function CreateCoursePage() {
   const [nbOfSections, setNbOfSections] = React.useState<number | "">("");
   const [documents, setDocuments] = React.useState<File[]>([]);
   const [loading, setLoading] = React.useState(false);
-  const { showMessage } = useSnackbar();
+  const [uploadingDocs, setUploadingDocs] = React.useState(false);
 
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
   const token = localStorage.getItem("token");
@@ -47,6 +50,25 @@ export default function CreateCoursePage() {
   const handleGenerate = async () => {
     if (!sub) {
       showMessage("User not found in localStorage", "error");
+      return;
+    }
+
+    // Validate required fields
+    if (
+      !title.trim() ||
+      !description.trim() ||
+      !level.trim() ||
+      durationValue === "" ||
+      nbOfModules === "" ||
+      nbOfSections === ""
+    ) {
+      showMessage("Please fill all required fields", "error");
+      return;
+    }
+
+    // Require at least one document
+    if (documents.length === 0) {
+      showMessage("Please upload at least one document", "error");
       return;
     }
 
@@ -82,31 +104,29 @@ export default function CreateCoursePage() {
         }
       );
 
-      showMessage("Course created successfully!", "success");
       const courseId = CreatedCourse.data.id;
+      showMessage("Course generation requested, the process may take some time", "warning");
 
       if (documents.length > 0) {
+        setUploadingDocs(true);
         const formData = new FormData();
-        documents.forEach((file) => {
-          formData.append("files", file);
-        });
+        documents.forEach((file) => formData.append("files", file));
 
         try {
           const response = await axios.post(
             `${BaseUrl}/courses/upload/${courseId}`,
             formData,
             {
-              headers: {
-                "Content-Type": "multipart/form-data",
-              },
+              headers: { "Content-Type": "multipart/form-data" },
             }
           );
-
           console.log("Upload response:", response.data);
-          showMessage("Files uploaded successfully!", "success");
+          showMessage("course generated successfully!", "success");
         } catch (err) {
           console.error(err);
           showMessage("Failed to upload files", "error");
+        } finally {
+          setUploadingDocs(false);
         }
       }
 
@@ -114,8 +134,8 @@ export default function CreateCoursePage() {
     } catch (err) {
       console.error(err);
       showMessage("Failed to create course.", "error");
-    } finally {
       setLoading(false);
+      setUploadingDocs(false);
     }
   };
 
@@ -133,6 +153,7 @@ export default function CreateCoursePage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               autoFocus
+              required
             />
             <TextField
               label="Description / Prompt"
@@ -141,14 +162,16 @@ export default function CreateCoursePage() {
               multiline
               minRows={3}
               helperText="Describe the topic and scope."
+              required
             />
             <TextField
               label="Level"
               select
               value={level}
               onChange={(e) => setLevel(e.target.value)}
+              required
             >
-              <MenuItem value="">N/A</MenuItem>
+              <MenuItem value="">Select a level</MenuItem>
               <MenuItem value="Beginner">Beginner</MenuItem>
               <MenuItem value="Intermediate">Intermediate</MenuItem>
               <MenuItem value="Advanced">Advanced</MenuItem>
@@ -170,20 +193,18 @@ export default function CreateCoursePage() {
                   }
                 }}
                 onKeyDown={(e) => {
-                  if (["-", "e", "."].includes(e.key)) {
-                    e.preventDefault();
-                  }
+                  if (["-", "e", "."].includes(e.key)) e.preventDefault();
                 }}
                 InputProps={{ inputProps: { min: 1, step: 1 } }}
+                required
               />
-
-
               <TextField
                 select
                 label="Unit"
                 value={durationUnit}
                 onChange={(e) => setDurationUnit(e.target.value)}
                 sx={{ minWidth: 120 }}
+                required
               >
                 <MenuItem value="minutes">Minutes</MenuItem>
                 <MenuItem value="hours">Hours</MenuItem>
@@ -192,7 +213,6 @@ export default function CreateCoursePage() {
                 <MenuItem value="months">Months</MenuItem>
               </TextField>
             </Box>
-
 
             <TextField
               label="Number of Modules"
@@ -206,22 +226,19 @@ export default function CreateCoursePage() {
                 }
                 if (/^[0-9]+$/.test(val)) {
                   const num = Number(val);
-                  if (num >= 1 && num <= 5) {
-                    setNbOfModules(Number(val));
-                  }
-                  else {
-                    if (e.nativeEvent instanceof InputEvent && e.nativeEvent.isComposing === false) {
-                      showMessage("PrepPilot can only handle 1 to 5 modules", "warning");
-                    }
-                  }
+                  if (num >= 1 && num <= 5) setNbOfModules(num);
+                  else
+                    showMessage(
+                      "PrepPilot can only handle 1 to 5 modules",
+                      "warning"
+                    );
                 }
               }}
               onKeyDown={(e) => {
-                if (["-", "e", "."].includes(e.key)) {
-                  e.preventDefault();
-                }
+                if (["-", "e", "."].includes(e.key)) e.preventDefault();
               }}
-              InputProps={{ inputProps: { min: 1, step: 1 } }}
+              InputProps={{ inputProps: { min: 1, max: 5, step: 1 } }}
+              required
             />
             <TextField
               label="Number of Sections"
@@ -235,29 +252,25 @@ export default function CreateCoursePage() {
                 }
                 if (/^[0-9]+$/.test(val)) {
                   const num = Number(val);
-                  if (num >= 1 && num <= 5) {
-                    setNbOfSections(Number(val));
-                  }
-                  else {
-                    if (e.nativeEvent instanceof InputEvent && e.nativeEvent.isComposing === false) {
-                      showMessage("PrepPilot can only handle 1 to 5 sections", "warning");
-                    }
-                  }
+                  if (num >= 1 && num <= 5) setNbOfSections(num);
+                  else
+                    showMessage(
+                      "PrepPilot can only handle 1 to 5 sections",
+                      "warning"
+                    );
                 }
               }}
               onKeyDown={(e) => {
-                if (["-", "e", "."].includes(e.key)) {
-                  e.preventDefault();
-                }
+                if (["-", "e", "."].includes(e.key)) e.preventDefault();
               }}
-              InputProps={{ inputProps: { min: 1, step: 1 } }}
+              InputProps={{ inputProps: { min: 1, max: 5, step: 1 } }}
+              required
             />
 
             <Divider textAlign="left">
               <LinkIcon fontSize="small" /> Documents
             </Divider>
 
-            {/* Dropzone Integration */}
             <Dropzone onDrop={onDrop}>
               {({ getRootProps, getInputProps }) => (
                 <Paper
@@ -276,7 +289,6 @@ export default function CreateCoursePage() {
               )}
             </Dropzone>
 
-            {/* Preview selected files */}
             {documents.length > 0 && (
               <Paper
                 variant="outlined"
@@ -292,20 +304,43 @@ export default function CreateCoursePage() {
               </Paper>
             )}
 
+            {uploadingDocs && (
+              <Box display="flex" alignItems="center" gap={1}>
+                <CircularProgress size={20} />
+                <Typography>Uploading documents...</Typography>
+              </Box>
+            )}
+
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
               <Button
                 variant="outlined"
                 onClick={() => navigate("/admin/courses")}
-                disabled={loading}
+                disabled={loading || uploadingDocs}
               >
                 Cancel
               </Button>
               <Button
                 variant="contained"
                 onClick={handleGenerate}
-                disabled={!title.trim() || loading}
+                disabled={
+                  !title.trim() ||
+                  !description.trim() ||
+                  !level.trim() ||
+                  durationValue === "" ||
+                  nbOfModules === "" ||
+                  nbOfSections === "" ||
+                  documents.length === 0 ||
+                  loading ||
+                  uploadingDocs
+                }
+                sx={{
+                  "&.Mui-disabled": {
+                    color: "#fff", // white text
+                    opacity: 0.5,
+                  },
+                }}
               >
-                {loading ? "Generating..." : "Generate"}
+                {loading || uploadingDocs ? "Processing..." : "Generate"}
               </Button>
             </Stack>
           </Stack>

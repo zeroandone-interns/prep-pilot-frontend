@@ -217,75 +217,109 @@ export default function Chatbot() {
   };
 
   // Send message with per-message loading + auto assistant reply ("Hi 👋")
-  const send = async () => {
-    if (!input.trim() || !curId || busy) return;
-    const content = input.trim();
-    setInput("");
-    setBusy(true);
+const send = async () => {
+  if (!input.trim() || !curId || busy) return;
+  const content = input.trim();
+  setInput("");
+  setBusy(true);
 
-    // 1) Add local temp user bubble
-    const userTempId = mkTempId();
-    addLocal(curId, {
-      id: userTempId,
-      content,
-      isBot: false,
-      ts: nowIso(),
-      saving: true,
-      temp: true,
+  // 1) Add local temp user bubble
+  const userTempId = mkTempId();
+  addLocal(curId, {
+    id: userTempId,
+    content,
+    isBot: false,
+    ts: nowIso(),
+    saving: true,
+    temp: true,
+  });
+
+  // 2) Persist user message
+  try {
+    const savedUser = await chatApi.sendMessage(curId, content, "user");
+    replaceTemp(curId, userTempId, savedUser);
+
+    // Update title if it was "New Chat"
+    setChats((prev) => {
+      const c = prev[curId]!;
+      const nextTitle =
+        c.title === "New Chat" && content ? truncate(content) : c.title;
+      return {
+        ...prev,
+        [curId]: { ...c, title: nextTitle, last: savedUser.created_at },
+      };
     });
+    setSessionTitles((t) => {
+      const curTitle = t[curId];
+      if (!curTitle || curTitle === "New Chat") {
+        return { ...t, [curId]: truncate(content) };
+      }
+      return t;
+    });
+  } catch (e) {
+    console.error("Failed to save user message", e);
+    markFailed(curId, userTempId, "(failed to send)");
+    setBusy(false);
+    return;
+  }
 
-    // 2) Persist user message
-    try {
-      const savedUser = await chatApi.sendMessage(curId, content, "user");
-      replaceTemp(curId, userTempId, savedUser);
+  // 3) Add local temp assistant bubble
+  const botTempId = mkTempId();
+  addLocal(curId, {
+    id: botTempId,
+    content: "…",
+    isBot: true,
+    ts: nowIso(),
+    saving: true,
+    temp: true,
+  });
 
-      // Update title if it was "New Chat"
+  // 4) Open SSE connection to NestJS streaming endpoint
+  try {
+    const evtSource = new EventSource(
+      `http://localhost:3000/chatbot/stream?session_id=${curId}&message=${encodeURIComponent(
+        content
+      )}`
+    );
+
+    let fullMessage = "";
+
+    evtSource.onmessage = (event) => {
+      fullMessage += event.data;
       setChats((prev) => {
-        const c = prev[curId]!;
-        const nextTitle =
-          c.title === "New Chat" && content ? truncate(content) : c.title;
-        return {
-          ...prev,
-          [curId]: { ...c, title: nextTitle, last: savedUser.created_at },
-        };
+        const c = prev[curId];
+        if (!c) return prev;
+        const msgs = c.msgs.map((m) =>
+          m.id === botTempId ? { ...m, content: fullMessage } : m
+        );
+        return { ...prev, [curId]: { ...c, msgs } };
       });
-      setSessionTitles((t) => {
-        const curTitle = t[curId];
-        if (!curTitle || curTitle === "New Chat") {
-          return { ...t, [curId]: truncate(content) };
-        }
-        return t;
-      });
-    } catch (e) {
-      console.error("Failed to save user message", e);
-      markFailed(curId, userTempId, "(failed to send)");
-      setBusy(false);
-      return;
-    }
+    };
 
-    // 3) Add local temp assistant "typing…" bubble
-    const assistantText = "Hi 👋"; // frontend-generated reply
-    const botTempId = mkTempId();
-    addLocal(curId, {
-      id: botTempId,
-      content: "…",
-      isBot: true,
-      ts: nowIso(),
-      saving: true,
-      temp: true,
-    });
-
-    // 4) Persist assistant reply
-    try {
-      const savedBot = await chatApi.sendMessage(curId, assistantText, "assistant");
-      replaceTemp(curId, botTempId, savedBot);
-    } catch (e) {
-      console.error("Failed to save assistant message", e);
+    evtSource.onerror = (err) => {
+      console.error("AI SSE error:", err);
       markFailed(curId, botTempId, "(assistant failed)");
-    } finally {
+      evtSource.close();
       setBusy(false);
-    }
-  };
+    };
+
+evtSource.addEventListener("end", () => {
+  replaceTemp(curId, botTempId, {
+    id: -1, 
+    session_id: curId, 
+    message: fullMessage,
+    sender: "assistant",
+    created_at: nowIso(),
+  });
+  evtSource.close();
+  setBusy(false);
+});
+  } catch (err) {
+    console.error("Failed to start AI stream:", err);
+    markFailed(curId, botTempId, "(assistant failed)");
+    setBusy(false);
+  }
+};
 
   // Helpers to manage local temp -> saved swap
   const addLocal = (chatId: number, msg: Msg) => {
