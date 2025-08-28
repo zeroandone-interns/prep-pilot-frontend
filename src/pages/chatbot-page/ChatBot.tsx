@@ -36,13 +36,15 @@ import {
 } from "@mui/icons-material";
 import "./Chatbot.css";
 import { chatApi, type ChatMessageDTO, type ChatSessionDTO } from "./chatApi";
+import { useAppDispatch } from "@/store";
+import { addMessageLocal, upsertSession } from "@/store/chatsSlice";
 
 type Msg = {
   id: number | string;
   content: string;
   isBot: boolean;
   ts: string;
-  saving?: boolean; // show skeleton while saving to DB
+  saving?: boolean; // local skeleton toggle
   temp?: boolean;
 };
 
@@ -58,6 +60,8 @@ const nowIso = () => new Date().toISOString();
 const mkTempId = () => `tmp-${Math.random().toString(36).slice(2, 10)}`;
 
 export default function Chatbot() {
+  const dispatch = useAppDispatch();
+
   const theme = useTheme();
   const upSm = useMediaQuery(theme.breakpoints.up("sm"));
   const upMd = useMediaQuery(theme.breakpoints.up("md"));
@@ -73,11 +77,11 @@ export default function Chatbot() {
   const [titleDraft, setTitleDraft] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const [busy, setBusy] = useState(false);                // disable input while saving
-  const [confirmOpen, setConfirmOpen] = useState(false);  // delete dialog
-  const [messagesLoading, setMessagesLoading] = useState(false); // skeleton when fetching a session's msgs
-  const [sessionsLoading, setSessionsLoading] = useState(false); // skeleton in sidebar while sessions load
-  const [bootLoading, setBootLoading] = useState(false);          // ⬅️ NEW: skeleton right after "New Chat"
+  const [busy, setBusy] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [bootLoading, setBootLoading] = useState(false);
 
   const messagesRef = useRef<HTMLDivElement | null>(null);
 
@@ -112,6 +116,10 @@ export default function Chatbot() {
   }
 
   const chat = useMemo(() => (curId ? chats[curId] : undefined), [curId, chats]);
+  const currentUserId = useMemo(
+    () => (curId ? sessions.find((s) => s.id === curId)?.user_id ?? 0 : 0),
+    [curId, sessions]
+  );
 
   // Load sessions on mount
   useEffect(() => {
@@ -120,6 +128,8 @@ export default function Chatbot() {
         setSessionsLoading(true);
         const data = await chatApi.getSessions();
         setSessions(data);
+        // prime Redux with any existing sessions (for uniqueness by user & chat)
+        data.forEach((s) => dispatch(upsertSession(s)));
         if (data.length && curId === null) {
           setCurId(data[0].id);
         }
@@ -189,7 +199,7 @@ export default function Chatbot() {
   const deriveTitleFromMessages = (msgs: ChatMessageDTO[]) => {
     const firstUser = msgs.find((m) => m.sender === "user");
     return firstUser ? truncate(firstUser.message) : "";
-  };
+    };
 
   const latestTs = (msgs: ChatMessageDTO[]) =>
     msgs.length ? msgs[msgs.length - 1].created_at : undefined;
@@ -201,11 +211,12 @@ export default function Chatbot() {
     ts: m.created_at,
   });
 
-  // Create new session (show skeleton immediately under brand-new chat)
+  // Create new session
   const create = async () => {
-    setBootLoading(true); // ⬅️ show bubbles under the empty new chat
+    setBootLoading(true);
     try {
       const s = await chatApi.createSession();
+      // keep local view
       setSessions((arr) => [s, ...arr]);
       setSessionTitles((t) => ({ ...t, [s.id]: "New Chat" }));
       setChats((prev) => ({
@@ -220,10 +231,12 @@ export default function Chatbot() {
       setCurId(s.id);
       setEditing(true);
       setTitleDraft("New Chat");
+
+      // also prime Redux (user-based + chat-based)
+      dispatch(upsertSession(s));
     } catch (err) {
       console.error("Failed to create chat session", err);
     } finally {
-      // keep it snappy but visible
       setTimeout(() => setBootLoading(false), 400);
     }
   };
@@ -242,18 +255,22 @@ export default function Chatbot() {
       });
       const remaining = sessions.filter((s) => s.id !== curId);
       setCurId(remaining[0]?.id ?? null);
+      // no Redux deletion on purpose (teammate can add later)
     } catch (e) {
       console.error("Failed to delete session", e);
     }
   };
 
-  // Send message (use skeleton while saving)
+  // ================================
+  // Send message (save to Redux) + stub bot "hi"
+  // ================================
   const send = async () => {
     if (!input.trim() || !curId || busy) return;
     const content = input.trim();
     setInput("");
     setBusy(true);
 
+    // local user bubble (with quick skeleton fade)
     const userTempId = mkTempId();
     addLocal(curId, {
       id: userTempId,
@@ -263,58 +280,55 @@ export default function Chatbot() {
       saving: true,
       temp: true,
     });
+    setTimeout(() => {
+      updateMsg(curId, userTempId, { saving: false });
+    }, 250);
 
-    try {
-      const savedUser = await chatApi.sendMessage(curId, content, "user");
-      replaceTemp(curId, userTempId, savedUser);
-
-      setChats((prev) => {
-        const c = prev[curId]!;
-        const nextTitle =
-          c.title === "New Chat" && content ? truncate(content) : c.title;
-        return {
-          ...prev,
-          [curId]: { ...c, title: nextTitle, last: savedUser.created_at },
-        };
-      });
-      setSessionTitles((t) => {
-        const curTitle = t[curId];
-        if (!curTitle || curTitle === "New Chat") {
-          return { ...t, [curId]: truncate(content) };
-        }
-        return t;
-      });
-    } catch (e) {
-      console.error("Failed to save user message", e);
-      markFailed(curId, userTempId, "(failed to send)");
-      setBusy(false);
-      return;
-    }
-
-    // Frontend-generated reply
-    const assistantText = "Hi 👋";
-    const botTempId = mkTempId();
-    addLocal(curId, {
-      id: botTempId,
-      content: assistantText,
-      isBot: true,
-      ts: nowIso(),
-      saving: true,
-      temp: true,
+    // set title locally if it's brand new
+    setChats((prev) => {
+      const c = prev[curId]!;
+      const nextTitle = c.title === "New Chat" && content ? truncate(content) : c.title;
+      return { ...prev, [curId]: { ...c, title: nextTitle } };
+    });
+    setSessionTitles((t) => {
+      const curTitle = t[curId!];
+      if (!curTitle || curTitle === "New Chat") return { ...t, [curId!]: truncate(content) };
+      return t;
     });
 
-    try {
-      const savedBot = await chatApi.sendMessage(curId, assistantText, "assistant");
-      replaceTemp(curId, botTempId, savedBot);
-    } catch (e) {
-      console.error("Failed to save assistant message", e);
-      markFailed(curId, botTempId, "(assistant failed)");
-    } finally {
-      setBusy(false);
-    }
-  };
+    // ✅ Save to Redux (user-based + chat-based)
+    dispatch(
+      addMessageLocal({
+        userID: currentUserId || 0,
+        sessionID: curId,
+        content,
+        isBot: false,
+      })
+    );
 
-  // Local helpers
+    // Stub AI reply "hi" → show locally + save to Redux
+    setTimeout(() => {
+      const botId = mkTempId();
+      addLocal(curId, {
+        id: botId,
+        content: "hi",
+        isBot: true,
+        ts: nowIso(),
+      });
+      dispatch(
+        addMessageLocal({
+          userID: currentUserId || 0,
+          sessionID: curId,
+          content: "hi",
+          isBot: true,
+        })
+      );
+      setBusy(false);
+    }, 350);
+  };
+  // ================================
+
+  // Local helpers (UI state only)
   const addLocal = (chatId: number, msg: Msg) => {
     setChats((prev) => {
       const c = prev[chatId] || {
@@ -330,35 +344,11 @@ export default function Chatbot() {
     });
   };
 
-  const replaceTemp = (chatId: number, tempId: string, saved: ChatMessageDTO) => {
+  const updateMsg = (chatId: number, msgId: string | number, patch: Partial<Msg>) => {
     setChats((prev) => {
       const c = prev[chatId];
       if (!c) return prev;
-      const msgs = c.msgs.map((m) =>
-        m.id === tempId
-          ? {
-              id: saved.id,
-              content: saved.message,
-              isBot: saved.sender === "assistant",
-              ts: saved.created_at,
-              saving: false,
-              temp: false,
-            }
-          : m
-      );
-      return { ...prev, [chatId]: { ...c, msgs, last: saved.created_at } };
-    });
-  };
-
-  const markFailed = (chatId: number, tempId: string, text: string) => {
-    setChats((prev) => {
-      const c = prev[chatId];
-      if (!c) return prev;
-      const msgs = c.msgs.map((m) =>
-        m.id === tempId
-          ? { ...m, saving: false, content: `${m.content}\n${text}` }
-          : m
-      );
+      const msgs = c.msgs.map((m) => (m.id === msgId ? { ...m, ...patch } : m));
       return { ...prev, [chatId]: { ...c, msgs } };
     });
   };
@@ -443,7 +433,6 @@ export default function Chatbot() {
               </Typography>
             </Box>
 
-            {/* if user clicked New Chat but createSession is in-flight, show skeletons */}
             <Box className="chat-messages">
               {bootLoading
                 ? Array.from({ length: 5 }).map((_, i) => (

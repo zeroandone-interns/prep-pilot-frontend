@@ -1,47 +1,54 @@
-// scr/store/chatsSlice.ts
 import { createSlice, createAsyncThunk, type PayloadAction } from "@reduxjs/toolkit";
-import { chatApi } from "../pages/chatbot-page/chatApi";
+import { chatApi } from "@/pages/chatbot-page/chatApi";
 
 export type Msg = { id: string; content: string; isBot: boolean; ts: string };
-export type Chat = { id: string; sessionID: number; title: string; msgs: Msg[]; last: string };
+
+export type Chat = {
+  sessionID: number;
+  userID: number; // <-- user-based + chat-based uniqueness
+  title: string;
+  msgs: Msg[];
+  last: string;
+};
 
 interface ChatsState {
-  chats: Chat[];
-  curId: string;
+  chats: Chat[];          // keep array for minimal disruption; each Chat has userID
+  curId: string;          // unused by Chatbot page, kept for compatibility
   loading: boolean;
 }
 
 const initialState: ChatsState = {
   chats: [
     {
-      id: "1",
       sessionID: 0,
+      userID: 0,
       title: "AWS Learning Chat",
       msgs: [
-        { id: "m1", content: "Hi! I'm your AWS learning assistant. Ask me anything.", isBot: true, ts: new Date().toISOString() },
+        {
+          id: "m1",
+          content: "Hi! I'm your AWS learning assistant. Ask me anything.",
+          isBot: true,
+          ts: new Date().toISOString(),
+        },
       ],
       last: new Date().toISOString(),
     },
   ],
-  curId: "1",
+  curId: "local-1",
   loading: false,
 };
 
-// --- Async thunks ---
+// Helper to find a chat by (userID, sessionID)
+function findChatIndex(state: ChatsState, userID: number, sessionID: number) {
+  return state.chats.findIndex((c) => c.userID === userID && c.sessionID === sessionID);
+}
+
+// --- Async thunks (reads only) ---
 export const createChatSession = createAsyncThunk(
   "chats/createChatSession",
-  async (userID: number) => {
-    const session = await chatApi.createSession(userID);
-    return session; // { id: number }
-  }
-);
-
-export const sendMessageAsync = createAsyncThunk(
-  "chats/sendMessage",
-  async ({ sessionID, content, isBot }: { sessionID: number; content: string; isBot: boolean }) => {
-    const sender = isBot ? "bot" : "user";
-    const msg = await chatApi.sendMessage(sessionID, content, sender);
-    return { ...msg, sessionID }; // add sessionID for reducer
+  async () => {
+    const session = await chatApi.createSession(); // returns ChatSessionDTO
+    return session; // { id, user_id, ... }
   }
 );
 
@@ -49,7 +56,13 @@ export const fetchMessages = createAsyncThunk(
   "chats/fetchMessages",
   async (sessionID: number) => {
     const msgs = await chatApi.getMessages(sessionID);
-    return { sessionID, msgs };
+    const mapped = msgs.map((m) => ({
+      id: String(m.id),
+      content: m.message,
+      isBot: m.sender === "assistant",
+      ts: m.created_at,
+    })) as Msg[];
+    return { sessionID, msgs: mapped };
   }
 );
 
@@ -57,58 +70,104 @@ const chatsSlice = createSlice({
   name: "chats",
   initialState,
   reducers: {
-    setCur: (state, action: PayloadAction<string>) => {
-      state.curId = action.payload;
+    // ensure a (userID, sessionID) chat stub exists
+    upsertSession: (
+      state,
+      action: PayloadAction<{ id: number; user_id: number; session_started_at?: string | null }>
+    ) => {
+      const { id, user_id, session_started_at } = action.payload;
+      const idx = findChatIndex(state, user_id, id);
+      if (idx === -1) {
+        state.chats.push({
+          sessionID: id,
+          userID: user_id,
+          title: `New Chat ${state.chats.length + 1}`,
+          msgs: [],
+          last: session_started_at || new Date().toISOString(),
+        });
+      }
     },
-    editTitle: (state, action: PayloadAction<string>) => {
-      const chat = state.chats.find(c => c.id === state.curId);
-      if (chat) chat.title = action.payload;
-    },
-    createChat: (state, action: PayloadAction<Chat>) => {
-      state.chats.push(action.payload);
-      state.curId = action.payload.id;
-    },
-    sendMsg: (state, action: PayloadAction<{ content: string; isBot: boolean }>) => {
-      const chat = state.chats.find(c => c.id === state.curId);
-      if (!chat) return;
-      chat.msgs.push({
+
+    // add a single message locally to Redux
+    addMessageLocal: (
+      state,
+      action: PayloadAction<{ userID: number; sessionID: number; content: string; isBot: boolean }>
+    ) => {
+      const { userID, sessionID, content, isBot } = action.payload;
+      const idx = findChatIndex(state, userID, sessionID);
+      const msg: Msg = {
         id: Date.now().toString(),
-        content: action.payload.content,
-        isBot: action.payload.isBot,
+        content,
+        isBot,
         ts: new Date().toISOString(),
-      });
-      chat.last = new Date().toISOString();
+      };
+
+      if (idx === -1) {
+        // if not present, create a stub chat and insert the message
+        state.chats.push({
+          sessionID,
+          userID,
+          title: `Chat ${sessionID}`,
+          msgs: [msg],
+          last: msg.ts,
+        });
+      } else {
+        state.chats[idx].msgs.push(msg);
+        state.chats[idx].last = msg.ts;
+      }
+    },
+
+    // optional local title edit
+    editTitle: (state, action: PayloadAction<{ userID: number; sessionID: number; title: string }>) => {
+      const { userID, sessionID, title } = action.payload;
+      const idx = findChatIndex(state, userID, sessionID);
+      if (idx !== -1) state.chats[idx].title = title;
     },
   },
-  extraReducers: builder => {
+  extraReducers: (builder) => {
     builder
-      .addCase(createChatSession.pending, state => { state.loading = true; })
-      .addCase(createChatSession.fulfilled, (state, action: PayloadAction<{ id: number }>) => {
-        const newId = Date.now().toString();
-        state.chats.push({
-          id: newId,
-          sessionID: action.payload.id,
-          title: `New Chat ${state.chats.length + 1}`,
-          msgs: [{ id: newId + "-greet", content: "Hi! I'm your AWS learning assistant. Ask me anything.", isBot: true, ts: new Date().toISOString() }],
-          last: new Date().toISOString(),
-        });
-        state.curId = newId;
-        state.loading = false;
+      .addCase(createChatSession.pending, (state) => {
+        state.loading = true;
       })
-      .addCase(createChatSession.rejected, state => { state.loading = false; })
-      .addCase(sendMessageAsync.fulfilled, (state, action: PayloadAction<{ id: string; content: string; sender: string; ts: string; sessionID: number }>) => {
-        const chat = state.chats.find(c => c.sessionID === action.payload.sessionID);
-        if (chat) {
-          chat.msgs.push({ id: action.payload.id, content: action.payload.content, isBot: action.payload.sender === "bot", ts: action.payload.ts });
-          chat.last = new Date().toISOString();
+      .addCase(createChatSession.fulfilled, (state, action) => {
+        state.loading = false;
+        const { id, user_id, session_started_at } = action.payload as unknown as {
+          id: number;
+          user_id: number;
+          session_started_at?: string | null;
+        };
+        const idx = findChatIndex(state, user_id, id);
+        if (idx === -1) {
+          state.chats.push({
+            sessionID: id,
+            userID: user_id,
+            title: `New Chat ${state.chats.length + 1}`,
+            msgs: [
+              {
+                id: `greet-${Date.now()}`,
+                content: "Hi! I'm your AWS learning assistant. Ask me anything.",
+                isBot: true,
+                ts: new Date().toISOString(),
+              },
+            ],
+            last: new Date().toISOString(),
+          });
         }
       })
-      .addCase(fetchMessages.fulfilled, (state, action: PayloadAction<{ sessionID: number; msgs: Msg[] }>) => {
-        const chat = state.chats.find(c => c.sessionID === action.payload.sessionID);
-        if (chat) chat.msgs = action.payload.msgs;
+      .addCase(createChatSession.rejected, (state) => {
+        state.loading = false;
+      })
+      .addCase(fetchMessages.fulfilled, (state, action) => {
+        const { sessionID, msgs } = action.payload as { sessionID: number; msgs: Msg[] };
+        // We don't know userID from this thunk directly; keep existing chat's userID if present
+        const existingIdx = state.chats.findIndex((c) => c.sessionID === sessionID);
+        if (existingIdx !== -1) {
+          state.chats[existingIdx].msgs = msgs;
+          state.chats[existingIdx].last = msgs[msgs.length - 1]?.ts ?? state.chats[existingIdx].last;
+        }
       });
   },
 });
 
-export const { setCur, editTitle, createChat, sendMsg } = chatsSlice.actions;
+export const { upsertSession, addMessageLocal, editTitle } = chatsSlice.actions;
 export default chatsSlice.reducer;
