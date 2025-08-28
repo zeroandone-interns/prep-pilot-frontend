@@ -16,6 +16,8 @@ import CreateCoursePage from "@/pages/admin/CreateCoursePage";
 import OrganizationPage from "@/pages/superadmin/OrganizationPage";
 import ProtectedRoute from "./pages/ProtectedRoute";
 import AdminViewCourse from "./pages/admin/AdminViewCourse";
+import FlashcardsPage from "./pages/courses-page/FlashCardsPage";
+
 const router = createBrowserRouter([
   // Routes without navbar (outside MainLayout)
   { path: "/", element: <SignUp /> },
@@ -103,6 +105,14 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <SectionPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/courses/:id/modules/:moduleId/flashcards",
+        element: (
+          <ProtectedRoute>
+            <FlashcardsPage />
           </ProtectedRoute>
         ),
       },

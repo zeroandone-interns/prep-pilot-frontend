@@ -8,6 +8,7 @@ import module from "./ModuleSlice";
 import section from "./SectionSlice";
 import language from "./LanguageSlice";
 import learner from "./LearnerViewSlice"
+import Next from "./NextSlice"
 import { useDispatch, useSelector } from "react-redux";
 import type { TypedUseSelectorHook } from "react-redux";
 
@@ -49,11 +50,16 @@ const learnerPersistConfig = {
   storage,
 };
 
+const NextPersistConfig = {
+  key: "Next",
+  storage,
+};
 const persistedCourseReducer = persistReducer(coursePersistConfig, course);
 const persistedModuleReducer = persistReducer(modulePersistConfig, module);
 const persistedSectionReducer = persistReducer(sectionPersistConfig, section);
 const persistedLanguageReducer = persistReducer( languagePersistConfig,language);
 const persistedLearnerReducer = persistReducer(learnerPersistConfig, learner);
+const persistedNextReducer = persistReducer(NextPersistConfig, Next);
 
 const rootReducer = combineReducers({
   users,
@@ -64,7 +70,8 @@ const rootReducer = combineReducers({
   module: persistedModuleReducer,
   section: persistedSectionReducer,
   language: persistedLanguageReducer,
-  learner: persistedLearnerReducer
+  learner: persistedLearnerReducer,
+  Next: persistedNextReducer,
 });
 
 export const store = configureStore({

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useParams, Link as RouterLink, useNavigate } from "react-router-dom";
-import { useAppSelector } from "@/store";
+import { useSelector } from "react-redux";
+import { type RootState } from "@/store";
 import {
   Box,
   Breadcrumbs,
@@ -12,20 +13,18 @@ import {
 } from "@mui/material";
 import Quiz from "@/components/Quiz";
 import axios from "axios";
-import type { MCQQuestion } from "@/types/course"; // your MCQQuestion type
-import { useSelector } from "react-redux";
-import { type RootState } from "@/store";
+import type { MCQQuestionWithExplanation } from "@/types/course"; // make sure this type has "explanation?: string"
 
 export default function FinalExamPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const BaseUrl = import.meta.env.VITE_API_BASE_URL;
   const course = useSelector((state: RootState) => state.course);
-    const language = useSelector((state: RootState) => state.language);
-    const lang = language.lang;
+  const lang = useSelector((state: RootState) => state.language.lang);
 
-
-  const [questions, setQuestions] = React.useState<MCQQuestion[] | null>(null);
+  const [questions, setQuestions] = React.useState<
+    MCQQuestionWithExplanation[] | null
+  >(null);
   const [loading, setLoading] = React.useState(false);
   const [result, setResult] = React.useState<{
     score: number;
@@ -38,46 +37,27 @@ export default function FinalExamPage() {
     setLoading(true);
     setError(null);
 
-    // Fetch questions from backend
     axios
       .get(`${BaseUrl}/courses/questions/${id}`)
       .then((res) => {
-        // Map backend Questions to MCQQuestion format
-        const data: MCQQuestion[] = res.data.map((q: any) => ({
+        const data: MCQQuestionWithExplanation[] = res.data.map((q: any) => ({
           id: q.id.toString(),
-          prompt: q[`question_text_${lang}` as keyof typeof q] ?? "", // or choose lang dynamically
+          prompt: q[`question_text_${lang}`] ?? "",
           options: [
-            {
-              id: "1",
-              text: q[`option1_${lang}` as keyof typeof q] ?? "",
-            },
-            {
-              id: "2",
-              text: q[`option2_${lang}` as keyof typeof q] ?? "",
-            },
-            {
-              id: "3",
-              text: q[`option3_${lang}` as keyof typeof q] ?? "",
-            },
+            { id: "1", text: q[`option1_${lang}`] ?? "" },
+            { id: "2", text: q[`option2_${lang}`] ?? "" },
+            { id: "3", text: q[`option3_${lang}`] ?? "" },
           ],
           correctOptionId: (() => {
-            if (
-              q[`correct_answer_${lang}` as keyof typeof q] ===
-              q[`option1_${lang}` as keyof typeof q]
-            )
+            if (q[`correct_answer_${lang}`] === q[`option1_${lang}`])
               return "1";
-            if (
-              q[`correct_answer_${lang}` as keyof typeof q] ===
-              q[`option2_${lang}` as keyof typeof q]
-            )
+            if (q[`correct_answer_${lang}`] === q[`option2_${lang}`])
               return "2";
-            if (
-              q[`correct_answer_${lang}` as keyof typeof q] ===
-              q[`option3_${lang}` as keyof typeof q]
-            )
+            if (q[`correct_answer_${lang}`] === q[`option3_${lang}`])
               return "3";
-            return "1"; // fallback
+            return "1";
           })(),
+          explanation: q[`explanation_${lang}`] ?? "", // always a string
         }));
         setQuestions(data);
       })
@@ -86,7 +66,7 @@ export default function FinalExamPage() {
         setError("Failed to load exam questions.");
       })
       .finally(() => setLoading(false));
-  }, [course]);
+  }, [course, lang]);
 
   if (!course) return <Typography>Course not found.</Typography>;
   if (loading) return <Typography>Loading questions...</Typography>;
@@ -94,19 +74,13 @@ export default function FinalExamPage() {
   if (!questions || !questions.length)
     return <Typography>No questions for this exam.</Typography>;
 
-  const total = questions.length;
-
   return (
     <Box>
       <Breadcrumbs sx={{ mb: 2 }}>
         <Link component={RouterLink} to="/courses" underline="hover">
           Courses
         </Link>
-        <Link
-          component={RouterLink}
-          to={`/courses/${id}`}
-          underline="hover"
-        >
+        <Link component={RouterLink} to={`/courses/${id}`} underline="hover">
           {course.title}
         </Link>
         <Typography color="text.primary">Final Exam</Typography>
