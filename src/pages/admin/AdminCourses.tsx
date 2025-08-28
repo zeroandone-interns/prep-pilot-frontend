@@ -1,3 +1,4 @@
+// src/pages/admin/AdminCourses.tsx
 import {
   Box,
   Table,

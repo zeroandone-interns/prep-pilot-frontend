@@ -1,3 +1,4 @@
+// src/pages/admin/AdminViewCourse.tsx
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";

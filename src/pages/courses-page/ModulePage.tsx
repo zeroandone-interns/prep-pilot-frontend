@@ -1,3 +1,4 @@
+// src/pages/courses-page/ModulePage.tsx
 import * as React from "react";
 import { useParams, Link as RouterLink } from "react-router-dom";
 import { useState, useEffect } from "react";
