@@ -34,17 +34,17 @@ import {
   Send,
   DeleteForever,
 } from "@mui/icons-material";
-import "./Chatbot.css";
-import { chatApi, type ChatMessageDTO, type ChatSessionDTO } from "./chatApi";
 import { useAppDispatch } from "@/store";
 import { addMessageLocal, upsertSession } from "@/store/chatsSlice";
+import { chatApi, type ChatMessageDTO, type ChatSessionDTO } from "./chatApi";
+import "./Chatbot.css";
 
 type Msg = {
   id: number | string;
   content: string;
   isBot: boolean;
   ts: string;
-  saving?: boolean; // local skeleton toggle
+  saving?: boolean;
   temp?: boolean;
 };
 
@@ -55,34 +55,34 @@ type LocalChat = {
   msgs: Msg[];
 };
 
-const truncate = (s: string, n = 36) => (s.length > n ? s.slice(0, n) + "…" : s);
+const truncate = (s: string, n = 36) =>
+  s.length > n ? s.slice(0, n) + "…" : s;
 const nowIso = () => new Date().toISOString();
 const mkTempId = () => `tmp-${Math.random().toString(36).slice(2, 10)}`;
 
 export default function Chatbot() {
   const dispatch = useAppDispatch();
-
   const theme = useTheme();
   const upSm = useMediaQuery(theme.breakpoints.up("sm"));
   const upMd = useMediaQuery(theme.breakpoints.up("md"));
   const APPBAR_H = upSm ? 64 : 56;
+  const token = localStorage.getItem("token");
 
   const [sessions, setSessions] = useState<ChatSessionDTO[]>([]);
-  const [sessionTitles, setSessionTitles] = useState<Record<number, string>>({});
+  const [sessionTitles, setSessionTitles] = useState<Record<number, string>>(
+    {}
+  );
   const [chats, setChats] = useState<Record<number, LocalChat>>({});
   const [curId, setCurId] = useState<number | null>(null);
-
   const [input, setInput] = useState("");
   const [editing, setEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
-
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [bootLoading, setBootLoading] = useState(false);
-
   const messagesRef = useRef<HTMLDivElement | null>(null);
 
   const BotIcon = ({ size = 20 }: { size?: number }) => (
@@ -90,7 +90,7 @@ export default function Chatbot() {
       component="img"
       src="/logo_black.png"
       alt="Bot"
-      sx={{ width: size, height: size, objectFit: "contain", display: "block" }}
+      sx={{ width: size, height: size, objectFit: "contain" }}
     />
   );
 
@@ -115,24 +115,24 @@ export default function Chatbot() {
     );
   }
 
-  const chat = useMemo(() => (curId ? chats[curId] : undefined), [curId, chats]);
+  const chat = useMemo(
+    () => (curId ? chats[curId] : undefined),
+    [curId, chats]
+  );
   const currentUserId = useMemo(
     () => (curId ? sessions.find((s) => s.id === curId)?.user_id ?? 0 : 0),
     [curId, sessions]
   );
 
-  // Load sessions on mount
+  // Load sessions
   useEffect(() => {
     const load = async () => {
       try {
         setSessionsLoading(true);
         const data = await chatApi.getSessions();
         setSessions(data);
-        // prime Redux with any existing sessions (for uniqueness by user & chat)
         data.forEach((s) => dispatch(upsertSession(s)));
-        if (data.length && curId === null) {
-          setCurId(data[0].id);
-        }
+        if (data.length && curId === null) setCurId(data[0].id);
       } catch (e) {
         console.error(e);
       } finally {
@@ -140,57 +140,46 @@ export default function Chatbot() {
       }
     };
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load messages when switching sessions
+  // Load messages for selected session
   useEffect(() => {
     const loadMsgs = async () => {
-      if (!curId) return;
-      if (!chats[curId]) {
-        setMessagesLoading(true);
-        try {
-          const msgs = await chatApi.getMessages(curId);
-          const derived = deriveTitleFromMessages(msgs);
-          setChats((prev) => ({
-            ...prev,
-            [curId]: {
-              id: curId,
-              title: sessionTitles[curId] || derived || `New Chat`,
-              last:
-                latestTs(msgs) ||
-                sessions.find((s) => s.id === curId)?.session_started_at ||
-                nowIso(),
-              msgs: msgs.map(toLocalMsg),
-            },
-          }));
-          if (derived) setSessionTitles((t) => ({ ...t, [curId]: derived }));
-        } catch (e) {
-          console.error(e);
-        } finally {
-          setMessagesLoading(false);
-        }
+      if (!curId || chats[curId]) return;
+      setMessagesLoading(true);
+      try {
+        const msgs = await chatApi.getMessages(curId);
+        const derivedTitle = deriveTitleFromMessages(msgs);
+        setChats((prev) => ({
+          ...prev,
+          [curId]: {
+            id: curId,
+            title: sessionTitles[curId] || derivedTitle || "New Chat",
+            last: latestTs(msgs) || nowIso(),
+            msgs: msgs.map(toLocalMsg),
+          },
+        }));
+        if (derivedTitle)
+          setSessionTitles((t) => ({ ...t, [curId]: derivedTitle }));
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setMessagesLoading(false);
       }
     };
     loadMsgs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curId]);
 
-  // Auto-scroll when msg count changes
+  // Auto-scroll
   useEffect(() => {
     const el = messagesRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [chat?.msgs.length]);
 
-  // End current session on tab close (best effort)
+  // End session on tab close
   useEffect(() => {
     const handleUnload = async () => {
-      if (curId) {
-        try {
-          await chatApi.endSession(curId);
-        } catch {}
-      }
+      if (curId) await chatApi.endSession(curId).catch(() => {});
     };
     window.addEventListener("beforeunload", handleUnload);
     return () => window.removeEventListener("beforeunload", handleUnload);
@@ -199,7 +188,7 @@ export default function Chatbot() {
   const deriveTitleFromMessages = (msgs: ChatMessageDTO[]) => {
     const firstUser = msgs.find((m) => m.sender === "user");
     return firstUser ? truncate(firstUser.message) : "";
-    };
+  };
 
   const latestTs = (msgs: ChatMessageDTO[]) =>
     msgs.length ? msgs[msgs.length - 1].created_at : undefined;
@@ -216,7 +205,6 @@ export default function Chatbot() {
     setBootLoading(true);
     try {
       const s = await chatApi.createSession();
-      // keep local view
       setSessions((arr) => [s, ...arr]);
       setSessionTitles((t) => ({ ...t, [s.id]: "New Chat" }));
       setChats((prev) => ({
@@ -231,8 +219,6 @@ export default function Chatbot() {
       setCurId(s.id);
       setEditing(true);
       setTitleDraft("New Chat");
-
-      // also prime Redux (user-based + chat-based)
       dispatch(upsertSession(s));
     } catch (err) {
       console.error("Failed to create chat session", err);
@@ -241,7 +227,6 @@ export default function Chatbot() {
     }
   };
 
-  // Delete current session
   const confirmDelete = () => setConfirmOpen(true);
   const doDelete = async () => {
     setConfirmOpen(false);
@@ -255,23 +240,20 @@ export default function Chatbot() {
       });
       const remaining = sessions.filter((s) => s.id !== curId);
       setCurId(remaining[0]?.id ?? null);
-      // no Redux deletion on purpose (teammate can add later)
     } catch (e) {
       console.error("Failed to delete session", e);
     }
   };
 
-
-  // ================================
-  // Send message (save to Redux) + stub bot "hi"
-  // ================================
+  // =========================
+  // Send message to Flask API
+  // =========================
   const send = async () => {
     if (!input.trim() || !curId || busy) return;
     const content = input.trim();
     setInput("");
     setBusy(true);
 
-    // local user bubble (with quick skeleton fade)
     const userTempId = mkTempId();
     addLocal(curId, {
       id: userTempId,
@@ -281,23 +263,21 @@ export default function Chatbot() {
       saving: true,
       temp: true,
     });
-    setTimeout(() => {
-      updateMsg(curId, userTempId, { saving: false });
-    }, 250);
+    setTimeout(() => updateMsg(curId, userTempId, { saving: false }), 250);
 
-    // set title locally if it's brand new
     setChats((prev) => {
       const c = prev[curId]!;
-      const nextTitle = c.title === "New Chat" && content ? truncate(content) : c.title;
+      const nextTitle =
+        c.title === "New Chat" && content ? truncate(content) : c.title;
       return { ...prev, [curId]: { ...c, title: nextTitle } };
     });
     setSessionTitles((t) => {
       const curTitle = t[curId!];
-      if (!curTitle || curTitle === "New Chat") return { ...t, [curId!]: truncate(content) };
+      if (!curTitle || curTitle === "New Chat")
+        return { ...t, [curId!]: truncate(content) };
       return t;
     });
 
-    // ✅ Save to Redux (user-based + chat-based)
     dispatch(
       addMessageLocal({
         userID: currentUserId || 0,
@@ -307,12 +287,22 @@ export default function Chatbot() {
       })
     );
 
-    // Stub AI reply "hi" → show locally + save to Redux
-    setTimeout(() => {
+    try {
+      const res = await fetch("http://localhost:3000/chat/send_message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" , "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ session_id: curId, message: content }),
+      });
+
+      if (!res.ok) throw new Error(`Flask API returned ${res.status}`);
+      const responseText = await res.text();
+      const data = JSON.parse(responseText); // convert to object
+      console.log(data.response); 
+      const botReply = data.response;    
       const botId = mkTempId();
       addLocal(curId, {
         id: botId,
-        content: "hi",
+        content: botReply,
         isBot: true,
         ts: nowIso(),
       });
@@ -320,16 +310,25 @@ export default function Chatbot() {
         addMessageLocal({
           userID: currentUserId || 0,
           sessionID: curId,
-          content: "hi",
+          content: botReply,
           isBot: true,
         })
       );
+    } catch (err) {
+      console.error("Failed to get response from Flask:", err);
+      const botId = mkTempId();
+      addLocal(curId, {
+        id: botId,
+        content: "Sorry, something went wrong.",
+        isBot: true,
+        ts: nowIso(),
+      });
+    } finally {
       setBusy(false);
-    }, 350);
+    }
   };
 
-
-  // Local helpers (UI state only)
+  // Local helpers
   const addLocal = (chatId: number, msg: Msg) => {
     setChats((prev) => {
       const c = prev[chatId] || {
@@ -345,7 +344,11 @@ export default function Chatbot() {
     });
   };
 
-  const updateMsg = (chatId: number, msgId: string | number, patch: Partial<Msg>) => {
+  const updateMsg = (
+    chatId: number,
+    msgId: string | number,
+    patch: Partial<Msg>
+  ) => {
     setChats((prev) => {
       const c = prev[chatId];
       if (!c) return prev;
@@ -358,10 +361,7 @@ export default function Chatbot() {
     if (!curId) return;
     const t = titleDraft.trim() || "New Chat";
     setSessionTitles((m) => ({ ...m, [curId]: t }));
-    setChats((prev) => ({
-      ...prev,
-      [curId]: { ...prev[curId]!, title: t },
-    }));
+    setChats((prev) => ({ ...prev, [curId]: { ...prev[curId]!, title: t } }));
     setEditing(false);
   };
 
@@ -380,10 +380,7 @@ export default function Chatbot() {
           [sessionId]: {
             id: sessionId,
             title: sessionTitles[sessionId] || derived || "New Chat",
-            last:
-              latestTs(msgs) ||
-              sessions.find((s) => s.id === sessionId)?.lastMessageAt ||
-              nowIso(),
+            last: latestTs(msgs) || nowIso(),
             msgs: msgs.map(toLocalMsg),
           },
         }));
@@ -396,86 +393,16 @@ export default function Chatbot() {
     }
   };
 
-  // First-time / no sessions yet
-  if (!curId && !sessions.length) {
-    return (
-      <Box className="chat-container" style={{ height: `calc(100dvh - ${APPBAR_H}px)` }}>
-        <Stack direction={{ xs: "column", md: "row" }} className="chat-stack">
-          {upMd ? (
-            <Paper variant="outlined" className="chat-sidebar">
-              <Box className="chat-sidebar-button">
-                <Button fullWidth variant="contained" startIcon={<Add />} onClick={create}>
-                  New Chat
-                </Button>
-              </Box>
-            </Paper>
-          ) : (
-            <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-              <Box className="chat-sidebar">
-                <Box className="chat-sidebar-button">
-                  <Button fullWidth variant="contained" startIcon={<Add />} onClick={create}>
-                    New Chat
-                  </Button>
-                </Box>
-              </Box>
-            </Drawer>
-          )}
-
-          <Paper className="chat-main">
-            <Box className="chat-header">
-              {!upMd && (
-                <IconButton size="small" style={{ color: "inherit" }} onClick={() => setDrawerOpen(true)}>
-                  <MenuIcon />
-                </IconButton>
-              )}
-              <BotIcon size={40} />
-              <Typography variant="h6" style={{ flex: 1 }}>
-                PrepPilot
-              </Typography>
-            </Box>
-
-            <Box className="chat-messages">
-              {bootLoading
-                ? Array.from({ length: 5 }).map((_, i) => (
-                    <BubbleSkeleton key={`boot-${i}`} isBot={i % 2 === 0} />
-                  ))
-                : null}
-            </Box>
-
-            <Box className="chat-input-box">
-              <Paper variant="outlined" className="chat-input-paper">
-                <TextField
-                  fullWidth
-                  multiline
-                  minRows={2}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      create();
-                    }
-                  }}
-                  placeholder="Type your message here…"
-                  variant="standard"
-                  InputProps={{ disableUnderline: true }}
-                  disabled
-                />
-                <IconButton color="primary" disabled>
-                  <Send />
-                </IconButton>
-              </Paper>
-            </Box>
-          </Paper>
-        </Stack>
-      </Box>
-    );
-  }
-
+  // Sidebar UI
   const Sidebar = (
     <Box className="chat-sidebar">
       <Box className="chat-sidebar-button">
-        <Button fullWidth variant="contained" startIcon={<Add />} onClick={create}>
+        <Button
+          fullWidth
+          variant="contained"
+          startIcon={<Add />}
+          onClick={create}
+        >
           New Chat
         </Button>
       </Box>
@@ -496,7 +423,10 @@ export default function Chatbot() {
             ))
           : sessions.map((s) => (
               <ListItem key={s.id} disablePadding>
-                <ListItemButton selected={s.id === curId} onClick={() => selectChat(s.id)}>
+                <ListItemButton
+                  selected={s.id === curId}
+                  onClick={() => selectChat(s.id)}
+                >
                   <ListItemIcon style={{ minWidth: 32 }}>
                     <ChatBubble fontSize="small" />
                   </ListItemIcon>
@@ -504,8 +434,10 @@ export default function Chatbot() {
                     primaryTypographyProps={{ noWrap: true }}
                     primary={sessionTitles[s.id] || `Chat ${s.id}`}
                     secondary={
-                      (s.lastMessageAt && new Date(s.lastMessageAt).toLocaleDateString()) ||
-                      (s.session_started_at && new Date(s.session_started_at).toLocaleDateString())
+                      (s.lastMessageAt &&
+                        new Date(s.lastMessageAt).toLocaleDateString()) ||
+                      (s.session_started_at &&
+                        new Date(s.session_started_at).toLocaleDateString())
                     }
                   />
                 </ListItemButton>
@@ -516,7 +448,10 @@ export default function Chatbot() {
   );
 
   return (
-    <Box className="chat-container" style={{ height: `calc(100dvh - ${APPBAR_H}px)` }}>
+    <Box
+      className="chat-container"
+      style={{ height: `calc(100dvh - ${APPBAR_H}px)` }}
+    >
       <Stack direction={{ xs: "column", md: "row" }} className="chat-stack">
         {upMd ? (
           <Paper variant="outlined" className="chat-sidebar">
@@ -527,17 +462,19 @@ export default function Chatbot() {
             {Sidebar}
           </Drawer>
         )}
-
         <Paper className="chat-main">
           {/* Header */}
           <Box className="chat-header">
             {!upMd && (
-              <IconButton size="small" style={{ color: "inherit" }} onClick={() => setDrawerOpen(true)}>
+              <IconButton
+                size="small"
+                style={{ color: "inherit" }}
+                onClick={() => setDrawerOpen(true)}
+              >
                 <MenuIcon />
               </IconButton>
             )}
             <BotIcon size={40} />
-
             {!editing ? (
               <>
                 <Typography
@@ -550,11 +487,14 @@ export default function Chatbot() {
                 >
                   {chat?.title || "New Chat"}
                 </Typography>
-
-                <IconButton size="small" style={{ color: "inherit" }} onClick={confirmDelete} title="Delete chat">
+                <IconButton
+                  size="small"
+                  style={{ color: "inherit" }}
+                  onClick={confirmDelete}
+                  title="Delete chat"
+                >
                   <DeleteForever />
                 </IconButton>
-
                 <IconButton
                   size="small"
                   style={{ color: "inherit" }}
@@ -579,10 +519,18 @@ export default function Chatbot() {
                   }}
                   className="chat-title-input"
                 />
-                <IconButton size="small" style={{ color: "inherit" }} onClick={saveTitle}>
+                <IconButton
+                  size="small"
+                  style={{ color: "inherit" }}
+                  onClick={saveTitle}
+                >
                   <Check />
                 </IconButton>
-                <IconButton size="small" style={{ color: "inherit" }} onClick={() => setEditing(false)}>
+                <IconButton
+                  size="small"
+                  style={{ color: "inherit" }}
+                  onClick={() => setEditing(false)}
+                >
                   <Close />
                 </IconButton>
               </>
@@ -591,86 +539,60 @@ export default function Chatbot() {
 
           {/* Messages */}
           <Box className="chat-messages" ref={messagesRef}>
-            {messagesLoading || bootLoading ? (
-              Array.from({ length: 6 }).map((_, i) => (
-                <BubbleSkeleton key={`s-${i}`} isBot={i % 2 === 0} />
-              ))
-            ) : (
-              chat?.msgs.map((m) => (
-                <Box key={m.id} className={`chat-message ${m.isBot ? "bot" : "user"}`}>
-                  {m.saving ? (
-                    <BubbleSkeleton isBot={m.isBot} />
-                  ) : (
-                    <>
-                      <Box
-                        style={{
-                          marginTop: 2,
-                          color: m.isBot ? theme.palette.secondary.main : theme.palette.primary.main,
-                        }}
-                      >
-                        {m.isBot ? <BotIcon size={30} /> : <Person fontSize="small" />}
-                      </Box>
-                      <Paper
-                        variant={m.isBot ? "outlined" : "elevation"}
-                        elevation={m.isBot ? 0 : 1}
-                        className={`chat-bubble ${m.isBot ? "bot" : "user"}`}
-                        style={
-                          !m.isBot
-                            ? { backgroundColor: alpha(theme.palette.primary.main, 0.08) }
-                            : {}
-                        }
-                      >
-                        <Typography variant="body2">{m.content}</Typography>
-                        <Typography className={`chat-timestamp ${m.isBot ? "bot" : "user"}`}>
-                          {new Date(m.ts).toLocaleTimeString()}
-                        </Typography>
-                      </Paper>
-                    </>
-                  )}
-                </Box>
-              ))
-            )}
+            {messagesLoading || bootLoading
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <BubbleSkeleton key={`s-${i}`} isBot={i % 2 === 0} />
+                ))
+              : chat?.msgs.map((m) => (
+                  <Box
+                    key={m.id}
+                    className={`chat-message ${m.isBot ? "bot" : "user"}`}
+                  >
+                    {m.saving ? (
+                      <BubbleSkeleton isBot={m.isBot} />
+                    ) : (
+                      <Typography>{m.content}</Typography>
+                    )}
+                  </Box>
+                ))}
           </Box>
 
           {/* Input */}
-          <Box className="chat-input-box">
-            <Paper variant="outlined" className="chat-input-paper">
-              <TextField
-                fullWidth
-                multiline
-                minRows={2}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    send();
-                  }
-                }}
-                placeholder="Type your message here…"
-                variant="standard"
-                InputProps={{ disableUnderline: true }}
-                disabled={busy}
-              />
-              <IconButton color="primary" onClick={send} disabled={!input.trim() || busy}>
-                {busy ? <CircularProgress size={22} /> : <Send />}
-              </IconButton>
-            </Paper>
+          <Box className="chat-input">
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Type a message..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") send();
+              }}
+              disabled={busy}
+            />
+            <IconButton
+              color="primary"
+              onClick={send}
+              disabled={busy || !input.trim()}
+            >
+              <Send />
+            </IconButton>
           </Box>
         </Paper>
       </Stack>
 
-      {/* Delete dialog */}
+      {/* Delete Confirmation */}
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
-        <DialogTitle>Delete this chat?</DialogTitle>
+        <DialogTitle>Delete Chat?</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            This will permanently remove the chat and its messages. This action cannot be undone.
+            Are you sure you want to delete this chat session? This cannot be
+            undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
-          <Button color="error" variant="contained" onClick={doDelete}>
+          <Button color="error" onClick={doDelete}>
             Delete
           </Button>
         </DialogActions>
